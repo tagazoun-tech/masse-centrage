@@ -45,7 +45,11 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 input[disabled]{opacity:.55;}
 
 /* top bar */
-.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);}
+.stickyhead{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line);}
+.topbar{display:flex;gap:8px;align-items:center;padding:10px 0;}
+.sumbar{padding:0 0 8px;}
+.sumbar .result{font-size:13.5px;line-height:1.3;}
+.sumbar .status{margin:6px auto 0;padding:7px 10px;font-size:14px;}
 .tabs{display:flex;gap:6px;flex:1;}
 .tab{flex:1;padding:10px 8px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:700;text-align:center;}
 .tab.on{background:var(--accent);border-color:var(--accent);color:#04202e;}
@@ -121,16 +125,20 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
 <body>
 <div class="wrap">
 
-<div class="topbar">
-  <div class="tabs" id="tabs"></div>
-  <button class="iconbtn" id="btnSettings" aria-label="Réglages">⚙ Réglages</button>
+<div class="stickyhead">
+  <div class="topbar">
+    <div class="tabs" id="tabs"></div>
+    <button class="iconbtn" id="btnSettings" aria-label="Réglages">⚙ Réglages</button>
+  </div>
+  <div class="sumbar" id="sumBar">
+    <div class="result" id="resLine"></div>
+    <div class="status na" id="statusBox"></div>
+  </div>
 </div>
 
 <!-- ================= PAGE PRINCIPALE ================= -->
 <main id="pageMain">
   <div class="title" id="acTitle"></div>
-  <div class="result" id="resLine"></div>
-  <div class="status na" id="statusBox"></div>
   <ul class="alerts" id="alerts"></ul>
 
   <div class="graph"><svg id="graph" viewBox="0 0 360 280" role="img" aria-label="Enveloppe de centrage"></svg></div>
@@ -150,7 +158,11 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
     <tfoot id="recapFoot"></tfoot>
   </table>
 
-  <div class="btnrow"><button class="btn" id="btnReset">Remettre les saisies à zéro</button></div>
+  <div class="btnrow">
+    <button class="btn primary" id="btnShare">Partager la fiche (image)</button>
+    <button class="btn" id="btnReset">Remettre les saisies à zéro</button>
+  </div>
+  <div class="small" id="shareMsg" style="margin-top:8px"></div>
 </main>
 
 <!-- ================= PAGE RÉGLAGES ================= -->
@@ -199,7 +211,6 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
   </div>
 </section>
 
-<div class="notice">Aucune valeur n'est préremplie : l'outil n'affiche « DANS L'ENVELOPPE » que lorsque l'enveloppe et toutes les stations sont renseignées. Contrôle ses résultats avec la documentation officielle de l'appareil avant tout usage opérationnel.</div>
 </div>
 
 <script>
@@ -487,6 +498,7 @@ function showSettings(on) {
   $('pageMain').classList.toggle('hidden', on);
   $('pageSettings').classList.toggle('hidden', !on);
   $('btnSettings').classList.toggle('hidden', on);
+  $('sumBar').classList.toggle('hidden', on);
   if (on) renderSettings(); else renderAll();
   window.scrollTo(0, 0);
 }
@@ -697,6 +709,103 @@ $('btnImportOne').onclick = () => {
     return;
   }
   $('exportMsg').textContent = 'Texte invalide : import annulé.';
+};
+
+// ---------------- Fiche de pesée (image PNG à partager) ----------------
+const LIGHT = { '--muted': '#5d6b80', '--line': '#d3dae6', '--ink': '#16202e', '--panel': '#ffffff' };
+function ficheGraphSvg(a, cur) {
+  drawGraph(a, cur);
+  let inner = $('graph').innerHTML;
+  Object.keys(LIGHT).forEach(k => { inner = inner.split('var(' + k + ')').join(LIGHT[k]); });
+  return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 280" width="900" height="700" font-family="Helvetica, Arial, sans-serif"><rect width="360" height="280" fill="#ffffff"/>' + inner + '</svg>';
+}
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image du graphique")); i.src = src; });
+
+async function buildFiche() {
+  const a = ac(), cur = compute(a);
+  const W = 1080, P = 48, FONT = 'Helvetica, Arial, sans-serif';
+  const cls = ($('statusBox').className.match(/\b(ok|bad|na)\b/) || [0, 'na'])[1];
+  const COL = { ok: '#14864a', bad: '#cf2f2f', na: '#a86a00' }[cls];
+  const alerts = [...$('alerts').querySelectorAll('li')].map(li => li.textContent);
+  const img = await loadImg('data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ficheGraphSvg(a, cur)));
+
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = 4000;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, 4000);
+  const txt = (s, x, yy, size, color, weight, align) => {
+    g.font = (weight || 'normal') + ' ' + size + 'px ' + FONT; g.fillStyle = color; g.textAlign = align || 'left'; g.textBaseline = 'alphabetic'; g.fillText(s, x, yy);
+  };
+  const fit = (s, maxW, size, weight) => {
+    g.font = (weight || 'normal') + ' ' + size + 'px ' + FONT;
+    if (g.measureText(s).width <= maxW) return s;
+    while (s.length > 1 && g.measureText(s + '…').width > maxW) s = s.slice(0, -1);
+    return s + '…';
+  };
+  const hline = (yy, color, w) => { g.strokeStyle = color; g.lineWidth = w || 2; g.beginPath(); g.moveTo(P, yy); g.lineTo(W - P, yy); g.stroke(); };
+
+  let y = P + 40;
+  txt('Fiche de masse et centrage', P, y, 40, '#16202e', 'bold');
+  y += 50;
+  txt(a.name, P, y, 34, '#8a6a2a', 'bold');
+  txt(new Date().toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }), W - P, y, 26, '#5d6b80', 'normal', 'right');
+  y += 30;
+  g.lineWidth = 4; g.strokeStyle = COL; g.strokeRect(P + 40, y, W - 2 * P - 80, 84);
+  txt(fit($('statusBox').textContent, W - 2 * P - 120, 34, 'bold'), W / 2, y + 55, 34, COL, 'bold', 'center');
+  y += 84 + 44;
+  txt(fit($('resLine').textContent, W - 2 * P, 30, 'bold'), W / 2, y, 30, '#16202e', 'bold', 'center');
+  alerts.forEach(t => { y += 34; txt(fit(t, W - 2 * P, 24), W / 2, y, 24, '#a86a00', 'normal', 'center'); });
+  y += 20;
+  g.drawImage(img, (W - 900) / 2, y, 900, 700);
+  y += 700 + 40;
+  [['#ff5c5c', 'Sans carburant', 150], ['#2fd67a', 'Chargement actuel', 420], ['#17bdff', 'Plein carburant', 740]].forEach(([c, l, x]) => {
+    g.fillStyle = c; g.beginPath(); g.arc(x, y - 7, 9, 0, Math.PI * 2); g.fill();
+    txt(l, x + 20, y, 22, '#5d6b80');
+  });
+  y += 56;
+
+  const RH = 46, cName = P, cIn = 600, cMass = 770, cArm = 900, cMom = W - P;
+  txt('Station', cName, y, 22, '#5d6b80', 'bold'); txt('Saisie', cIn, y, 22, '#5d6b80', 'bold', 'right');
+  txt('Masse kg', cMass, y, 22, '#5d6b80', 'bold', 'right'); txt('Bras m', cArm, y, 22, '#5d6b80', 'bold', 'right'); txt('Moment', cMom, y, 22, '#5d6b80', 'bold', 'right');
+  hline(y + 12, '#16202e');
+  cur.rows.forEach(r => {
+    y += RH;
+    const s = r.s;
+    const entered = s.type === 'fuel' ? fmt(r.value, 1) + ' L' : s.type === 'var' ? fmt(r.value, 1) + ' kg' : s.type === 'fixed' ? (isRemoved(a, s) ? 'Déposé' : 'À bord') : '';
+    txt(fit(s.name + (s.visible ? '' : ' (masquée)'), cIn - 170 - cName, 25), cName, y, 25, '#16202e');
+    txt(entered, cIn, y, 25, '#16202e', 'normal', 'right');
+    txt(fmt(r.mass, 1), cMass, y, 25, '#16202e', 'normal', 'right');
+    txt(fmt(s.arm, 3), cArm, y, 25, '#16202e', 'normal', 'right');
+    txt(fmt(r.moment, 1), cMom, y, 25, '#16202e', 'normal', 'right');
+    hline(y + 12, '#d3dae6', 1);
+  });
+  y += RH;
+  hline(y - RH + 12, '#16202e');
+  txt('Total', cName, y, 26, '#16202e', 'bold');
+  txt(fmt(cur.mass, 1), cMass, y, 26, '#16202e', 'bold', 'right');
+  txt(fmt(cur.cg, 3), cArm, y, 26, '#16202e', 'bold', 'right');
+  txt(fmt(cur.moment, 1), cMom, y, 26, '#16202e', 'bold', 'right');
+
+  const out = document.createElement('canvas'); out.width = W; out.height = y + P;
+  out.getContext('2d').drawImage(cv, 0, 0);
+  return new Promise((res, rej) => out.toBlob(b => b ? res(b) : rej(new Error('PNG')), 'image/png'));
+}
+
+$('btnShare').onclick = async () => {
+  const msg = $('shareMsg'); msg.textContent = 'Création de la fiche…';
+  try {
+    const blob = await buildFiche();
+    const p = n => String(n).padStart(2, '0'), d = new Date();
+    const name = 'fiche-' + ac().name.replace(/[^A-Za-z0-9]+/g, '-') + '-' + d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes()) + '.png';
+    const file = new File([blob], name, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Fiche de masse et centrage' }); msg.textContent = ''; return; }
+      catch (e) { if (e && e.name === 'AbortError') { msg.textContent = ''; return; } }
+    }
+    const url = URL.createObjectURL(blob), l = document.createElement('a');
+    l.href = url; l.download = name; document.body.appendChild(l); l.click(); l.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    msg.textContent = 'Fiche enregistrée : ' + name;
+  } catch (e) { msg.textContent = 'Impossible de créer la fiche : ' + (e && e.message || e); }
 };
 
 // ---------------- Démarrage ----------------

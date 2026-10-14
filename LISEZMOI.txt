@@ -1,0 +1,57 @@
+MASSE ET CENTRAGE - VERSION INSTALLABLE (HORS-LIGNE)
+
+Contenu du dossier (les 6 fichiers doivent rester ensemble, au même endroit) :
+  index.html            l'application
+  sw.js                 le mode hors-ligne
+  manifest.webmanifest  l'installation sur l'écran d'accueil
+  icon-180.png, icon-192.png, icon-512.png   l'icône
+
+Décompresse d'abord le .zip : il faut mettre en ligne les fichiers, pas l'archive.
+
+
+1) METTRE EN LIGNE (gratuit, à faire une seule fois, depuis un ordinateur)
+
+  Option GitHub Pages
+  - Crée un compte sur github.com, puis un nouveau dépôt (public : c'est obligatoire en gratuit).
+  - "Add file" > "Upload files" : glisse les 6 fichiers, puis "Commit changes".
+  - Dans le dépôt : "Settings" > "Pages" > "Deploy from a branch" > branche "main", dossier "/ (root)" > "Save".
+  - Après une minute environ, l'adresse apparaît en haut de la page "Pages".
+    Elle ressemble à : https://ton-pseudo.github.io/nom-du-depot/
+
+  Option Netlify
+  - Crée un compte gratuit sur netlify.com, puis "Add new site" > "Deploy manually".
+  - Glisse le dossier décompressé. Tu obtiens une adresse en .netlify.app.
+
+  L'adresse doit commencer par https:// (c'est le cas chez ces hébergeurs).
+  Garde toujours la même adresse : les réglages sont enregistrés par adresse.
+
+
+2) INSTALLER SUR L'IPHONE
+
+  - Ouvre l'adresse dans Safari (et non dans une autre application).
+  - Touche "Partager" puis "Sur l'écran d'accueil", puis "Ajouter".
+  - Ouvre l'appli depuis la nouvelle icône, avec du réseau, une première fois.
+    C'est ce qui enregistre le mode hors-ligne.
+  - Saisis tes réglages depuis l'icône (et non dans Safari : les deux ne partagent pas
+    leurs données).
+  - Test : mets le téléphone en mode avion et ouvre l'icône.
+
+  Installée sur l'écran d'accueil, l'appli garde ses données. Dans un onglet Safari classique,
+  iOS peut effacer les données d'un site après 7 jours sans visite.
+
+
+3) METTRE À JOUR
+
+  Remplace index.html chez l'hébergeur. L'appli récupère la nouvelle version à la prochaine
+  ouverture avec du réseau. Tes réglages ne sont pas touchés.
+
+
+4) SAUVEGARDER TES RÉGLAGES
+
+  Dans l'appli : Réglages > Sauvegarde > "Générer / copier". Colle le texte dans Notes.
+  Pour restaurer ou transférer vers un autre appareil : colle-le dans la même zone,
+  puis "Importer ce texte".
+
+
+Aucune donnée n'est envoyée sur Internet : tout reste dans le téléphone.
+Contrôle les résultats avec la documentation officielle de l'appareil avant tout usage opérationnel.

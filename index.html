@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Masse centrage">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c1a26" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<title>Masse et centrage</title>
+<style>
+:root{
+  --bg:#f3f5f9; --panel:#ffffff; --panel2:#eaeef5; --line:#d3dae6;
+  --ink:#16202e; --muted:#5d6b80; --accent:#0a8fd1; --gold:#8a6a2a;
+  --ok:#14864a; --bad:#cf2f2f; --warn:#a86a00;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1a26; --panel:#10242f; --panel2:#17323f; --line:#24424f;
+    --ink:#e8edf3; --muted:#8fa3b3; --accent:#17bdff; --gold:#e6cf9f;
+    --ok:#2fd67a; --bad:#ff5c5c; --warn:#f0b23c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1a26; --panel:#10242f; --panel2:#17323f; --line:#24424f;
+  --ink:#e8edf3; --muted:#8fa3b3; --accent:#17bdff; --gold:#e6cf9f;
+  --ok:#2fd67a; --bad:#ff5c5c; --warn:#f0b23c;
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+html,body{height:100%;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+.wrap{max-width:720px;margin:0 auto;padding:0 14px 50px;}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;}
+input,select,textarea{font:inherit;font-size:16px;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%;}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px;}
+input[disabled]{opacity:.55;}
+
+/* top bar */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);display:flex;gap:8px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line);}
+.tabs{display:flex;gap:6px;flex:1;}
+.tab{flex:1;padding:10px 8px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:700;text-align:center;}
+.tab.on{background:var(--accent);border-color:var(--accent);color:#04202e;}
+.iconbtn{padding:10px 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:600;}
+
+h2{font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;}
+.title{text-align:center;color:var(--gold);font-weight:700;font-size:18px;margin:16px 0 6px;}
+.result{text-align:center;color:var(--accent);font-weight:700;font-size:14.5px;line-height:1.5;font-variant-numeric:tabular-nums;}
+.status{margin:10px auto 4px;max-width:420px;text-align:center;padding:10px;border-radius:10px;font-weight:800;letter-spacing:.03em;border:1.5px solid var(--line);}
+.status.ok{color:var(--ok);border-color:var(--ok);}
+.status.bad{color:var(--bad);border-color:var(--bad);}
+.status.na{color:var(--warn);border-color:var(--warn);}
+.alerts{margin:6px 0 0;padding:0;list-style:none;font-size:13px;color:var(--warn);text-align:center;}
+.alerts li{margin:2px 0;}
+
+.graph{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px;margin-top:10px;}
+.graph svg{width:100%;height:auto;display:block;}
+.key{display:flex;gap:14px;justify-content:center;font-size:12px;color:var(--muted);margin-top:6px;flex-wrap:wrap;}
+.key i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px;}
+
+/* station rows */
+.row{padding:12px 0;border-bottom:1px solid var(--line);}
+.row .head{display:flex;justify-content:space-between;gap:10px;align-items:baseline;}
+.row .nm{font-weight:700;color:var(--gold);}
+.row .desc{font-size:12px;color:var(--muted);}
+.row .mo{font-size:12.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.row .ctl{display:flex;align-items:center;gap:8px;margin:7px 0 6px;}
+.row .ctl input[type=number]{width:110px;}
+.row .ctl .u{color:var(--muted);}
+.row.locked .nm::after{content:" 🔒";font-size:12px;}
+.row.over input[type=number]{border-color:var(--bad);}
+input[type=range]{padding:0;height:26px;background:transparent;border:none;accent-color:var(--accent);}
+.seg{display:flex;gap:6px;margin:8px 0 4px;}
+.seg button{flex:1;padding:10px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);font-weight:700;}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#04202e;}
+details.cat{border:1px solid var(--line);border-radius:12px;background:var(--panel);margin-top:10px;padding:0 12px;}
+details.cat>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:14px 0;cursor:pointer;font-weight:800;color:var(--gold);}
+details.cat>summary::-webkit-details-marker{display:none;}
+details.cat>summary::before{content:"▸";color:var(--muted);display:inline-block;width:12px;}
+details.cat[open]>summary::before{content:"▾";}
+details.cat>summary .cn{flex:1;}
+details.cat>summary .ct{font-weight:600;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
+details.cat .row:last-child{border-bottom:none;}
+details.cat.set{background:transparent;}
+
+/* recap */
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
+th,td{padding:6px 4px;text-align:right;border-bottom:1px solid var(--line);}
+th:first-child,td:first-child{text-align:left;}
+th{color:var(--muted);font-weight:600;font-size:12px;}
+tr.hid td:first-child::after{content:" (masquée)";color:var(--muted);font-size:11.5px;}
+tfoot td{font-weight:800;border-bottom:none;}
+.btnrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.btn{padding:10px 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:600;}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#04202e;}
+.btn.danger{color:var(--bad);}
+
+/* settings */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:10px;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.f{display:block;font-size:12px;color:var(--muted);margin-bottom:3px;}
+.f+input,.f+select{margin-bottom:8px;}
+.ptrow{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;}
+.chk{display:flex;align-items:center;gap:8px;margin-top:4px;}
+.chk input{width:20px;height:20px;accent-color:var(--accent);}
+.stlinks{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+.small{font-size:12.5px;color:var(--muted);line-height:1.5;}
+.notice{border:1px solid var(--warn);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin-top:12px;}
+.hidden{display:none !important;}
+textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="topbar">
+  <div class="tabs" id="tabs"></div>
+  <button class="iconbtn" id="btnSettings" aria-label="Réglages">⚙ Réglages</button>
+</div>
+
+<!-- ================= PAGE PRINCIPALE ================= -->
+<main id="pageMain">
+  <div class="title" id="acTitle"></div>
+  <div class="result" id="resLine"></div>
+  <div class="status na" id="statusBox"></div>
+  <ul class="alerts" id="alerts"></ul>
+
+  <div class="graph"><svg id="graph" viewBox="0 0 360 280" role="img" aria-label="Enveloppe de centrage"></svg></div>
+  <div class="key">
+    <span><i style="background:#ff5c5c"></i>Sans carburant</span>
+    <span><i style="background:#2fd67a"></i>Chargement actuel</span>
+    <span><i style="background:#17bdff"></i>Plein carburant</span>
+  </div>
+
+  <h2>Chargement</h2>
+  <div id="rows"></div>
+
+  <h2>Récapitulatif (toutes les stations)</h2>
+  <table>
+    <thead><tr><th>Station</th><th>Masse kg</th><th>Bras m</th><th>Moment</th></tr></thead>
+    <tbody id="recap"></tbody>
+    <tfoot id="recapFoot"></tfoot>
+  </table>
+
+  <div class="btnrow"><button class="btn" id="btnReset">Remettre les saisies à zéro</button></div>
+</main>
+
+<!-- ================= PAGE RÉGLAGES ================= -->
+<section id="pageSettings" class="hidden">
+  <div class="title">Réglages</div>
+  <div class="btnrow" style="margin-top:0"><button class="btn primary" id="btnBack">← Retour au calcul</button></div>
+  <p class="small">Chaque modification est enregistrée automatiquement sur cet appareil. Les réglages sont propres à l'hélicoptère sélectionné en haut.</p>
+
+  <h2>Hélicoptère</h2>
+  <div class="card">
+    <label class="f">Nom</label><input id="setName">
+    <label class="f">Densité du carburant (kg/L)</label><input id="setDensity" type="number" step="any" inputmode="decimal">
+    <div class="small">Masses en kg, bras de levier en mètres, carburant saisi en litres.</div>
+  </div>
+
+  <h2>Points de centrage (enveloppe)</h2>
+  <p class="small">Saisis les sommets du polygone dans l'ordre, en faisant le tour de l'enveloppe. Il en faut au moins 3.</p>
+  <div id="setPoints"></div>
+  <div class="btnrow" style="margin-top:0"><button class="btn" id="btnAddPoint">+ Ajouter un point</button></div>
+
+  <!-- catégories : créées dans la section Stations -->
+  <!-- -->
+  <div id="setCats" class="hidden"></div>
+  <!-- -->
+
+  <h2>Stations de chargement</h2>
+  <p class="small">Crée des catégories pour regrouper les stations en sections déroulantes, ici et sur la page principale.</p>
+  <div id="setStations"></div>
+  <div class="btnrow" style="margin-top:0"><button class="btn" id="btnAddStation">+ Ajouter une station</button>
+    <button class="btn" id="btnAddCat">+ Ajouter une catégorie</button></div>
+
+  <h2>Sauvegarde</h2>
+  <div class="card">
+    <p class="small" style="margin-top:0">Copie ce texte pour sauvegarder tous les réglages, ou colle un texte sauvegardé pour les restaurer (remplace tout).</p>
+    <textarea id="exportBox" spellcheck="false"></textarea>
+    <div class="btnrow">
+      <button class="btn" id="btnExport">Générer / copier</button>
+      <button class="btn danger" id="btnImport">Importer ce texte</button>
+    </div>
+    <div class="small" id="exportMsg" style="margin-top:8px"></div>
+  </div>
+</section>
+
+<div class="notice">Aucune valeur n'est préremplie : l'outil n'affiche « DANS L'ENVELOPPE » que lorsque l'enveloppe et toutes les stations sont renseignées. Contrôle ses résultats avec la documentation officielle de l'appareil avant tout usage opérationnel.</div>
+</div>
+
+<script>
+// ---------------- Stockage ----------------
+const KEY = 'masse-centrage-v1';
+const uid = () => Math.random().toString(36).slice(2, 9);
+const isNum = v => typeof v === 'number' && isFinite(v);
+const num = s => { const n = parseFloat(String(s).replace(',', '.')); return isFinite(n) ? n : null; };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = (v, d) => isNum(v) ? v.toFixed(d) : '—';
+const r1 = v => isNum(v) ? Math.round(v * 10) / 10 : null; // masses : une décimale maximum
+
+function st(name, desc, type, max, visible = true) {
+  return { id: uid(), name, desc, type, arm: null, max, def: 0, visible };
+}
+function newAircraft(name) {
+  return {
+    name, density: 0.8, envelope: [],
+    stations: [
+      { id: uid(), name: 'Masse à vide', desc: 'Pesée de l\'appareil', type: 'empty', arm: null, max: null, def: null, visible: true },
+      st('Carburant', 'Saisi en litres', 'fuel', null),
+      st('Pilote', '', 'var', 150),
+      st('Copilote', '', 'var', 150),
+      st('PAX 1', '', 'var', 150),
+      st('PAX 2', '', 'var', 150),
+      st('PAX 3', '', 'var', 150),
+      st('Treuil', 'Équipement optionnel', 'var', null, false)
+    ],
+    removed: {},
+    values: {}
+  };
+}
+function newStore() { return { active: 'A', aircraft: { A: newAircraft('Morpho A'), B: newAircraft('Morpho B') } }; }
+
+let store;
+let memoryOnly = false;
+function load() {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) { const s = JSON.parse(raw); if (s && s.aircraft && s.aircraft.A && s.aircraft.B) return s; }
+  } catch (e) { memoryOnly = true; }
+  return newStore();
+}
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { memoryOnly = true; }
+}
+store = load();
+const ac = () => store.aircraft[store.active];
+function ensureCats(a) { if (!Array.isArray(a.categories)) a.categories = []; if (!a.catOpen) a.catOpen = {}; if (!a.setOpen) a.setOpen = {}; }
+
+// ---------------- Calcul ----------------
+function incompleteReasons(a) {
+  const r = [];
+  if (a.envelope.length < 3 || a.envelope.some(p => !isNum(p.arm) || !isNum(p.mass))) r.push('Enveloppe de centrage incomplète (3 points minimum, tous renseignés).');
+  if (!isNum(a.density)) r.push('Densité du carburant non renseignée.');
+  a.stations.forEach(s => {
+    if (!isNum(s.arm)) r.push('Bras de levier manquant : ' + s.name);
+    if ((s.type === 'empty' || s.type === 'fixed') && !isNum(s.def)) r.push('Masse manquante : ' + s.name);
+    if ((s.type === 'fuel' || s.type === 'var') && !isNum(s.max)) r.push('Valeur max manquante : ' + s.name);
+  });
+  return r;
+}
+function isRemoved(a, s) {
+  if (s.visible && a.removed && a.removed[s.id] !== undefined) return !!a.removed[s.id];
+  return !!s.defRemoved;
+}
+function stationValue(a, s, fuelOverride) {
+  if (s.type === 'empty') return isNum(s.def) ? s.def : 0;
+  if (s.type === 'fixed') {
+    const m = isNum(s.def) ? s.def : 0;
+    const removed = isRemoved(a, s);
+    if (s.onRemoved === 'subtract') return removed ? -m : 0; // déjà compris dans la masse à vide
+    return removed ? 0 : m;
+  }
+  if (s.type === 'fuel' && fuelOverride !== undefined) return fuelOverride;
+  if (s.visible) { const v = a.values[s.id]; return isNum(v) ? v : (isNum(s.def) ? s.def : 0); }
+  return isNum(s.def) ? s.def : 0;
+}
+function compute(a, fuelOverride) {
+  let mass = 0, moment = 0; const rows = [];
+  a.stations.forEach(s => {
+    const value = stationValue(a, s, fuelOverride);
+    const m = s.type === 'fuel' ? value * (isNum(a.density) ? a.density : 0) : value;
+    const arm = isNum(s.arm) ? s.arm : 0;
+    mass += m; moment += m * arm;
+    rows.push({ s, value, mass: m, moment: m * arm });
+  });
+  return { mass, moment, cg: mass > 0 ? moment / mass : null, rows };
+}
+function pointInPolygon(x, y, poly) {
+  let inside = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const xi = poly[i].arm, yi = poly[i].mass, xj = poly[j].arm, yj = poly[j].mass;
+    // sur le bord = accepté
+    const cross = (x - xi) * (yj - yi) - (y - yi) * (xj - xi);
+    if (Math.abs(cross) < 1e-9 && x >= Math.min(xi, xj) - 1e-9 && x <= Math.max(xi, xj) + 1e-9 && y >= Math.min(yi, yj) - 1e-9 && y <= Math.max(yi, yj) + 1e-9) return true;
+    if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+  }
+  return inside;
+}
+
+// ---------------- Rendu principal ----------------
+const $ = id => document.getElementById(id);
+
+function renderTabs() {
+  $('tabs').innerHTML = ['A', 'B'].map(k =>
+    `<button class="tab ${store.active === k ? 'on' : ''}" data-k="${k}">${esc(store.aircraft[k].name)}</button>`).join('');
+  $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => {
+    store.active = b.dataset.k; save(); renderTabs(); renderAll();
+  });
+}
+
+function unitOf(s) { return s.type === 'fuel' ? 'L' : 'kg'; }
+
+function renderRows() {
+  const a = ac();
+  const vis = a.stations.filter(s => s.visible);
+  $('rows').innerHTML = vis.length ? '' : '<p class="small">Aucune station visible. Active « visible » dans les réglages.</p>';
+  ensureCats(a);
+  const hosts = {};
+  const top = document.createElement('div');
+  $('rows').appendChild(top);
+  a.categories.forEach(c => {
+    if (!vis.some(s => s.cat === c.id)) return;
+    const det = document.createElement('details');
+    det.className = 'cat'; det.dataset.cat = c.id;
+    det.open = a.catOpen[c.id] !== false;
+    det.innerHTML = `<summary><span class="cn">${esc(c.name || 'Sans nom')}</span><span class="ct"></span></summary>`;
+    det.addEventListener('toggle', () => { a.catOpen[c.id] = det.open; save(); });
+    hosts[c.id] = det;
+    $('rows').appendChild(det);
+  });
+  const hostFor = s => (s.cat && hosts[s.cat]) || top;
+  vis.forEach(s => {
+    if (s.type === 'fixed') {
+      const d = document.createElement('div');
+      d.className = 'row'; d.dataset.id = s.id;
+      d.innerHTML = `<div class="head"><div><div class="nm">${esc(s.name)}</div>${s.desc ? `<div class="desc">${esc(s.desc)}</div>` : ''}</div><div class="mo"></div></div>
+        <div class="seg"><button data-r="0">À bord</button><button data-r="1">Déposé</button></div>
+        <div class="small" data-m></div>`;
+      const setSeg = () => { const rem = isRemoved(a, s); d.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', (b.dataset.r === '1') === rem)); };
+      d.querySelectorAll('.seg button').forEach(b => b.onclick = () => { if (!a.removed) a.removed = {}; a.removed[s.id] = b.dataset.r === '1'; save(); setSeg(); update(); });
+      setSeg(); hostFor(s).appendChild(d); return;
+    }
+    const locked = s.type === 'empty';
+    const val = stationValue(a, s);
+    const max = isNum(s.max) ? s.max : (locked ? val : 0);
+    const div = document.createElement('div');
+    div.className = 'row' + (locked ? ' locked' : '');
+    div.dataset.id = s.id;
+    div.innerHTML = `
+      <div class="head"><div><div class="nm">${esc(s.name)}</div>${s.desc ? `<div class="desc">${esc(s.desc)}</div>` : ''}</div><div class="mo"></div></div>
+      <div class="ctl"><input type="number" step="0.1" inputmode="decimal" value="${val}" ${locked ? 'disabled' : ''}><span class="u">${unitOf(s)}</span></div>
+      <input type="range" min="0" max="${max}" step="${s.type === 'fuel' ? 1 : 0.1}" value="${Math.min(val, max)}" ${locked ? 'disabled' : ''}>`;
+    const numIn = div.querySelector('input[type=number]');
+    const rng = div.querySelector('input[type=range]');
+    if (!locked) {
+      numIn.addEventListener('input', () => {
+        const v = num(numIn.value); a.values[s.id] = v === null ? 0 : r1(v);
+        rng.value = Math.min(a.values[s.id], max); save(); update();
+      });
+      numIn.addEventListener('change', () => { if (isNum(a.values[s.id])) numIn.value = a.values[s.id]; });
+      rng.addEventListener('input', () => {
+        a.values[s.id] = r1(parseFloat(rng.value)); numIn.value = a.values[s.id]; save(); update();
+      });
+    }
+    hostFor(s).appendChild(div);
+  });
+}
+
+function update() {
+  const a = ac();
+  $('acTitle').textContent = a.name;
+  const reasons = incompleteReasons(a);
+  const cur = compute(a);
+
+  // lignes : moments + dépassement
+  const alerts = [];
+  const overCats = new Set();
+  cur.rows.forEach(r => {
+    const el = $('rows').querySelector(`.row[data-id="${r.s.id}"]`);
+    if (el) el.querySelector('.mo').textContent = fmt(r.moment, 3) + ' m.kg';
+    const mt = el && el.querySelector('[data-m]');
+    if (mt) mt.textContent = 'Masse prise en compte : ' + fmt(r.value, 1) + ' kg';
+    const over = (r.s.type === 'var' || r.s.type === 'fuel') && isNum(r.s.max) && r.value > r.s.max + 1e-9;
+    if (el) el.classList.toggle('over', over);
+    if (over && r.s.cat) overCats.add(r.s.cat);
+    if (over) alerts.push(`${r.s.name} : ${fmt(r.value, 1)} ${unitOf(r.s)} > maximum ${r.s.max} ${unitOf(r.s)}`);
+  });
+
+  // total par catégorie (stations visibles de la catégorie)
+  $('rows').querySelectorAll('details.cat').forEach(det => {
+    const id = det.dataset.cat; let t = 0;
+    cur.rows.forEach(r => { if (r.s.visible && r.s.cat === id) t += r.mass; });
+    det.querySelector('.ct').textContent = (overCats.has(id) ? '⚠ ' : '') + fmt(t, 1) + ' kg';
+  });
+
+  // ligne résultat + statut
+  $('resLine').textContent = cur.cg === null ? '—' :
+    `CG = ${fmt(cur.moment, 1)} m.kg / ${fmt(cur.mass, 1)} kg = ${fmt(cur.cg, 3)} m`;
+  const box = $('statusBox');
+  if (reasons.length) {
+    box.className = 'status na'; box.textContent = 'DONNÉES INCOMPLÈTES — voir Réglages';
+    reasons.slice(0, 6).forEach(t => alerts.push(t));
+    if (reasons.length > 6) alerts.push('… et ' + (reasons.length - 6) + ' autre(s)');
+  } else if (cur.cg === null) {
+    box.className = 'status na'; box.textContent = 'MASSE NULLE';
+  } else {
+    const maxMass = Math.max(...a.envelope.map(p => p.mass));
+    const inside = pointInPolygon(cur.cg, cur.mass, a.envelope);
+    if (inside) { box.className = 'status ok'; box.textContent = "DANS L'ENVELOPPE"; }
+    else if (cur.mass > maxMass + 1e-9) { box.className = 'status bad'; box.textContent = 'MASSE MAXIMALE DÉPASSÉE (' + r1(maxMass) + ' kg)'; }
+    else { box.className = 'status bad'; box.textContent = 'HORS ENVELOPPE'; }
+  }
+  $('alerts').innerHTML = alerts.map(t => `<li>${esc(t)}</li>`).join('');
+
+  drawGraph(a, cur);
+  renderRecap(a, cur);
+}
+
+function renderRecap(a, cur) {
+  $('recap').innerHTML = cur.rows.map(r =>
+    `<tr class="${r.s.visible ? '' : 'hid'}"><td>${esc(r.s.name)}</td><td>${fmt(r.mass, 1)}</td><td>${fmt(r.s.arm, 3)}</td><td>${fmt(r.moment, 1)}</td></tr>`).join('');
+  $('recapFoot').innerHTML = `<tr><td>Total</td><td>${fmt(cur.mass, 1)}</td><td>${fmt(cur.cg, 3)}</td><td>${fmt(cur.moment, 1)}</td></tr>`;
+}
+
+// ---------------- Graphique ----------------
+function drawGraph(a, cur) {
+  const svg = $('graph');
+  const W = 360, H = 280, L = 52, R = 16, T = 30, B = 46;
+  const env = a.envelope.filter(p => isNum(p.arm) && isNum(p.mass));
+  if (env.length < 3) {
+    svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="13" fill="var(--muted)">Enveloppe non renseignée (Réglages)</text>`;
+    return;
+  }
+  const xs = env.map(p => p.arm), ys = env.map(p => p.mass);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  const px = (x1 - x0) * 0.04 || 0.05, py = (y1 - y0) * 0.05 || 20;
+  // inclure les points affichés
+  const complete = incompleteReasons(a).length === 0;
+  const pts = [];
+  if (complete && cur.cg !== null) {
+    const fuel = a.stations.find(s => s.type === 'fuel');
+    const lo = fuel ? compute(a, 0) : null;
+    const hi = fuel && isNum(fuel.max) ? compute(a, fuel.max) : null;
+    if (lo && lo.cg !== null) pts.push({ c: '#ff5c5c', p: lo });
+    pts.push({ c: '#2fd67a', p: cur });
+    if (hi && hi.cg !== null) pts.push({ c: '#17bdff', p: hi });
+    pts.forEach(q => { x0 = Math.min(x0, q.p.cg); x1 = Math.max(x1, q.p.cg); y0 = Math.min(y0, q.p.mass); y1 = Math.max(y1, q.p.mass); });
+  }
+  x0 -= px; x1 += px; y0 -= py; y1 += py;
+  // bornes et graduations « rondes » pour que les axes restent lisibles
+  const niceStep = (range, steps) => steps.find(t => range / t <= 6) || steps[steps.length - 1];
+  const sy = niceStep(y1 - y0, [10, 20, 25, 50, 100, 200, 250, 500, 1000]);
+  const sx = niceStep(x1 - x0, [0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5, 1]);
+  y0 = Math.floor(y0 / sy + 1e-9) * sy; y1 = Math.ceil(y1 / sy - 1e-9) * sy;
+  x0 = Math.floor(x0 / sx + 1e-9) * sx; x1 = Math.ceil(x1 / sx - 1e-9) * sx;
+  const X = v => L + (v - x0) / (x1 - x0) * (W - L - R);
+  const Y = v => H - B - (v - y0) / (y1 - y0) * (H - T - B);
+  let s = '';
+  const ny = Math.round((y1 - y0) / sy), nx = Math.round((x1 - x0) / sx), dx = sx === 0.025 ? 3 : 2;
+  for (let k = 0; k <= ny; k++) {
+    const mv = y0 + k * sy, gy = Y(mv).toFixed(1);
+    s += `<line x1="${L}" y1="${gy}" x2="${W - R}" y2="${gy}" stroke="var(--line)" stroke-width="1"/>`;
+    s += `<text x="${L - 7}" y="${(+gy + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="var(--muted)">${mv.toFixed(0)}</text>`;
+  }
+  for (let k = 0; k <= nx; k++) {
+    const av = x0 + k * sx, gx = X(av).toFixed(1);
+    s += `<line x1="${gx}" y1="${T}" x2="${gx}" y2="${H - B}" stroke="var(--line)" stroke-width="1"/>`;
+    s += `<text x="${gx}" y="${H - B + 16}" text-anchor="${k === 0 ? 'start' : k === nx ? 'end' : 'middle'}" font-size="11" fill="var(--muted)">${av.toFixed(dx)}</text>`;
+  }
+  s += `<text x="${L}" y="14" font-size="11.5" font-weight="600" fill="var(--ink)">Masse (kg)</text>`;
+  s += `<text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="11.5" font-weight="600" fill="var(--ink)">Bras de levier (m)</text>`;
+  s += `<polygon points="${env.map(p => X(p.arm).toFixed(1) + ',' + Y(p.mass).toFixed(1)).join(' ')}" fill="rgba(255,92,92,.07)" stroke="#ff5c5c" stroke-width="2" stroke-linejoin="round"/>`;
+  if (pts.length > 1) s += `<polyline points="${pts.map(q => X(q.p.cg).toFixed(1) + ',' + Y(q.p.mass).toFixed(1)).join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 3"/>`;
+  pts.forEach(q => { s += `<circle cx="${X(q.p.cg).toFixed(1)}" cy="${Y(q.p.mass).toFixed(1)}" r="7" fill="${q.c}" stroke="var(--panel)" stroke-width="2"/>`; });
+  svg.innerHTML = s;
+}
+
+function renderAll() { renderRows(); update(); }
+
+// ---------------- Réglages ----------------
+function showSettings(on) {
+  $('pageMain').classList.toggle('hidden', on);
+  $('pageSettings').classList.toggle('hidden', !on);
+  $('btnSettings').classList.toggle('hidden', on);
+  if (on) renderSettings(); else renderAll();
+  window.scrollTo(0, 0);
+}
+
+function renderSettings() { renderSettingsBase(); groupSettings(ac()); }
+
+// Dès qu'une catégorie existe : les stations des réglages sont rangées en sections déroulantes
+function groupSettings(a) {
+  if (!a.categories.length) return;
+  const host = $('setStations');
+  const cards = [...host.children].filter(el => el.classList.contains('card'));
+  const catCards = [...$('setCats').children].filter(el => el.classList.contains('card'));
+  const keyOf = s => (s.cat && a.categories.some(c => c.id === s.cat)) ? s.cat : '';
+  const groups = {};
+  cards.forEach(card => { const k = keyOf(a.stations[+card.dataset.i]); (groups[k] = groups[k] || []).push(card); });
+  host.innerHTML = '';
+  const make = (key, title, items, head) => {
+    const det = document.createElement('details');
+    det.className = 'cat set';
+    det.open = !!a.setOpen[key || '_none'];
+    det.innerHTML = `<summary><span class="cn">${esc(title)}</span><span class="ct">${items.length} station${items.length > 1 ? 's' : ''}</span></summary>`;
+    det.addEventListener('toggle', () => { a.setOpen[key || '_none'] = det.open; save(); });
+    if (head) det.appendChild(head);
+    items.forEach((card, k) => {
+      card.querySelector('[data-mv="-1"]').disabled = k === 0;
+      card.querySelector('[data-mv="1"]').disabled = k === items.length - 1;
+      det.appendChild(card);
+    });
+    if (key) {
+      const add = document.createElement('div');
+      add.className = 'btnrow';
+      add.innerHTML = '<button class="btn">+ Ajouter une station ici</button>';
+      add.firstChild.onclick = () => { a.stations.push({ ...st('Nouvelle station', '', 'var', 150), cat: key }); a.setOpen[key] = true; save(); renderSettings(); };
+      det.appendChild(add);
+    }
+    host.appendChild(det);
+  };
+  if (groups['']) make('', 'Sans catégorie', groups[''], null);
+  a.categories.forEach((c, ci) => make(c.id, c.name || 'Sans nom', groups[c.id] || [], catCards[ci]));
+}
+
+function renderSettingsBase() {
+  const a = ac();
+  ensureCats(a);
+  $('setName').value = a.name;
+
+  $('setCats').innerHTML = a.categories.map((c, i) => `
+    <div class="card" data-ci="${i}">
+      <label class="f">Nom de la catégorie</label><input data-cf="name" value="${esc(c.name)}">
+      <div class="stlinks">
+        <button class="btn" data-cmv="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn" data-cmv="1" ${i === a.categories.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="btn danger" data-crm="1" style="margin-left:auto">Supprimer</button>
+      </div>
+    </div>`).join('') || '<p class="small">Aucune catégorie.</p>';
+  $('setCats').querySelectorAll('.card').forEach(card => {
+    const i = +card.dataset.ci;
+    card.querySelector('[data-cf]').addEventListener('input', e => {
+      const c = a.categories[i]; c.name = e.target.value; save();
+      const sm = e.target.closest('details.cat'); if (sm) sm.querySelector('summary .cn').textContent = c.name || 'Sans nom';
+      document.querySelectorAll('#setStations select[data-f="cat"] option').forEach(o => { if (o.value === c.id) o.textContent = c.name || 'Sans nom'; });
+    });
+    card.querySelectorAll('[data-cmv]').forEach(b => b.onclick = () => {
+      const j = i + +b.dataset.cmv; [a.categories[i], a.categories[j]] = [a.categories[j], a.categories[i]]; save(); renderSettings();
+    });
+    card.querySelector('[data-crm]').onclick = () => {
+      const c = a.categories[i];
+      if (confirm('Supprimer la catégorie « ' + c.name + ' » ? Ses stations passent sans catégorie et restent comptées dans le calcul.')) {
+        a.stations.forEach(s => { if (s.cat === c.id) s.cat = ''; });
+        a.categories.splice(i, 1); save(); renderSettings();
+      }
+    };
+  });
+  $('setDensity').value = isNum(a.density) ? a.density : '';
+  $('exportBox').value = ''; $('exportMsg').textContent = '';
+
+  $('setPoints').innerHTML = a.envelope.map((p, i) => `
+    <div class="ptrow" data-i="${i}">
+      <div><label class="f">Bras de levier (m)</label><input type="number" step="any" inputmode="decimal" data-f="arm" value="${isNum(p.arm) ? p.arm : ''}"></div>
+      <div><label class="f">Masse (kg)</label><input type="number" step="any" inputmode="decimal" data-f="mass" value="${isNum(p.mass) ? p.mass : ''}"></div>
+      <button class="btn danger" data-del="${i}" aria-label="Supprimer le point">✕</button>
+    </div>`).join('') || '<p class="small">Aucun point.</p>';
+  $('setPoints').querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+    const i = +inp.closest('.ptrow').dataset.i; const v = num(inp.value); a.envelope[i][inp.dataset.f] = inp.dataset.f === 'mass' ? r1(v) : v; save();
+  }));
+  $('setPoints').querySelectorAll('input[data-f="mass"]').forEach(inp => inp.addEventListener('change', () => { const v = a.envelope[+inp.closest('.ptrow').dataset.i].mass; inp.value = isNum(v) ? v : ''; }));
+  $('setPoints').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { a.envelope.splice(+b.dataset.del, 1); save(); renderSettings(); });
+
+  const typeOpts = [['empty', 'Masse à vide (fixe)'], ['fuel', 'Carburant (litres)'], ['var', 'Charge variable (kg)'], ['fixed', 'Équipement amovible (à bord / déposé)']];
+  $('setStations').innerHTML = a.stations.map((s, i) => `
+    <div class="card" data-i="${i}">
+      <div class="grid2">
+        <div><label class="f">Nom</label><input data-f="name" value="${esc(s.name)}"></div>
+        <div><label class="f">Type</label><select data-f="type">${typeOpts.map(o => `<option value="${o[0]}" ${s.type === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div>
+      </div>
+      <label class="f">Descriptif</label><input data-f="desc" value="${esc(s.desc)}">
+      <label class="f">Catégorie</label><select data-f="cat"><option value="">Sans catégorie</option>${a.categories.map(c => `<option value="${c.id}" ${s.cat === c.id ? 'selected' : ''}>${esc(c.name || 'Sans nom')}</option>`).join('')}</select>
+      <div class="grid2">
+        <div><label class="f">Bras de levier (m)</label><input type="number" step="any" inputmode="decimal" data-f="arm" value="${isNum(s.arm) ? s.arm : ''}"></div>
+        <div><label class="f" data-lbl="max">${maxLabel(s.type)}</label><input type="number" step="any" inputmode="decimal" data-f="max" value="${isNum(s.max) ? s.max : ''}" ${s.type === 'empty' || s.type === 'fixed' ? 'disabled' : ''}></div>
+      </div>
+      <label class="f" data-lbl="def">${defLabel(s.type)}</label>
+      <input type="number" step="any" inputmode="decimal" data-f="def" value="${isNum(s.def) ? s.def : ''}">
+      ${s.type === 'fixed' ? `<label class="f">Quand l'équipement est déposé</label><select data-f="onRemoved"><option value="zero" ${s.onRemoved !== 'subtract' ? 'selected' : ''}>Non comprise dans la masse à vide : à bord = + sa masse, déposé = 0</option><option value="subtract" ${s.onRemoved === 'subtract' ? 'selected' : ''}>Déjà comprise dans la masse à vide : à bord = 0, déposé = − sa masse</option></select><label class="chk"><input type="checkbox" data-f="defRemoved" ${s.defRemoved ? 'checked' : ''}> Déposé par défaut</label>` : ''}
+      <label class="chk"><input type="checkbox" data-f="visible" ${s.visible ? 'checked' : ''}> Visible sur la page principale</label>
+      <div class="small">${s.visible ? '' : 'Masquée : comptée dans le calcul avec la valeur par défaut ci-dessus.'}</div>
+      <div class="stlinks">
+        <button class="btn" data-mv="-1" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn" data-mv="1" ${i === a.stations.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="btn danger" data-rm="1" style="margin-left:auto">Supprimer</button>
+      </div>
+    </div>`).join('');
+  $('setStations').querySelectorAll('.card').forEach(card => {
+    const i = +card.dataset.i;
+    card.querySelectorAll('[data-f]').forEach(inp => {
+      const f = inp.dataset.f;
+      const handler = () => {
+        const s = a.stations[i];
+        if (f === 'visible') { s.visible = inp.checked; save(); renderSettings(); return; }
+        if (f === 'type') { s.type = inp.value; save(); renderSettings(); return; }
+        if (f === 'onRemoved') { s.onRemoved = inp.value; save(); return; }
+        if (f === 'defRemoved') { s.defRemoved = inp.checked; save(); return; }
+        if (f === 'cat') { s.cat = inp.value; ensureCats(a); a.setOpen[s.cat || '_none'] = true; save(); renderSettings(); return; }
+        if (f === 'name' || f === 'desc') s[f] = inp.value; else if (f === 'arm') s[f] = num(inp.value); else s[f] = r1(num(inp.value));
+        save();
+      };
+      inp.addEventListener(inp.tagName === 'SELECT' || inp.type === 'checkbox' ? 'change' : 'input', handler);
+      if (f === 'def' || f === 'max') inp.addEventListener('change', () => { const v = a.stations[i][f]; inp.value = isNum(v) ? v : ''; });
+    });
+    card.querySelectorAll('[data-mv]').forEach(b => b.onclick = () => {
+      const dir = +b.dataset.mv, key = s => (s.cat && a.categories.some(c => c.id === s.cat)) ? s.cat : '';
+      let j = i + dir;
+      while (j >= 0 && j < a.stations.length && key(a.stations[j]) !== key(a.stations[i])) j += dir;
+      if (j < 0 || j >= a.stations.length) return;
+      [a.stations[i], a.stations[j]] = [a.stations[j], a.stations[i]]; save(); renderSettings();
+    });
+    card.querySelector('[data-rm]').onclick = () => {
+      if (confirm('Supprimer la station « ' + a.stations[i].name + ' » ?')) { a.stations.splice(i, 1); save(); renderSettings(); }
+    };
+  });
+}
+function maxLabel(t) { return t === 'fuel' ? 'Capacité max (L)' : t === 'var' ? 'Masse max (kg)' : 'Valeur max (sans objet)'; }
+function defLabel(t) { return t === 'empty' ? 'Masse à vide (kg)' : t === 'fixed' ? 'Masse de l\'équipement (kg)' : t === 'fuel' ? 'Valeur par défaut (L)' : 'Valeur par défaut (kg)'; }
+
+$('setName').addEventListener('input', () => { ac().name = $('setName').value || 'Sans nom'; save(); renderTabs(); });
+$('setDensity').addEventListener('input', () => { ac().density = num($('setDensity').value); save(); });
+$('btnAddPoint').onclick = () => { ac().envelope.push({ arm: null, mass: null }); save(); renderSettings(); };
+$('btnAddStation').onclick = () => { ensureCats(ac()); ac().setOpen._none = true; ac().stations.push(st('Nouvelle station', '', 'var', 150)); save(); renderSettings(); };
+$('btnAddCat').onclick = () => { const a = ac(); ensureCats(a); const nc = { id: uid(), name: 'Nouvelle catégorie' }; a.categories.push(nc); a.setOpen[nc.id] = true; save(); renderSettings(); };
+$('btnSettings').onclick = () => showSettings(true);
+$('btnBack').onclick = () => showSettings(false);
+$('btnReset').onclick = () => { if (confirm('Remettre toutes les saisies de ' + ac().name + ' à leur valeur par défaut ?')) { ac().values = {}; ac().removed = {}; save(); renderAll(); } };
+
+$('btnExport').onclick = async () => {
+  const box = $('exportBox'); box.value = JSON.stringify(store); box.focus(); box.select();
+  try { await navigator.clipboard.writeText(box.value); $('exportMsg').textContent = 'Copié. Colle ce texte dans un endroit sûr.'; }
+  catch (e) { $('exportMsg').textContent = 'Sélectionne et copie le texte ci-dessus.'; }
+};
+$('btnImport').onclick = () => {
+  try {
+    const s = JSON.parse($('exportBox').value);
+    if (!s || !s.aircraft || !s.aircraft.A || !s.aircraft.B) throw new Error('format');
+    if (!confirm('Remplacer tous les réglages actuels par ce texte ?')) return;
+    store = s; save(); renderTabs(); renderSettings(); $('exportMsg').textContent = 'Réglages importés.';
+  } catch (e) { $('exportMsg').textContent = 'Texte invalide : import annulé.'; }
+};
+
+// ---------------- Démarrage ----------------
+renderTabs();
+renderAll();
+if (memoryOnly) { const n = document.createElement('div'); n.className = 'notice'; n.textContent = "Le stockage du navigateur est indisponible : tes réglages seront perdus à la fermeture. Utilise la sauvegarde par texte (Réglages)."; document.querySelector('.wrap').prepend(n); }
+</script>
+<script>
+// Mode hors-ligne (nécessite une adresse https)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
+}
+</script>
+</body>
+</html>

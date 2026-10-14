@@ -155,7 +155,7 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
 
 <!-- ================= PAGE RÉGLAGES ================= -->
 <section id="pageSettings" class="hidden">
-  <div class="title">Réglages</div>
+  <div class="title" id="setTitle">Réglages</div>
   <div class="btnrow" style="margin-top:0"><button class="btn primary" id="btnBack">← Retour au calcul</button></div>
   <p class="small">Chaque modification est enregistrée automatiquement sur cet appareil. Les réglages sont propres à l'hélicoptère sélectionné en haut.</p>
 
@@ -182,15 +182,20 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
   <div class="btnrow" style="margin-top:0"><button class="btn" id="btnAddStation">+ Ajouter une station</button>
     <button class="btn" id="btnAddCat">+ Ajouter une catégorie</button></div>
 
-  <h2>Sauvegarde</h2>
+  <h2>Sauvegarde et copie des réglages</h2>
   <div class="card">
-    <p class="small" style="margin-top:0">Copie ce texte pour sauvegarder tous les réglages, ou colle un texte sauvegardé pour les restaurer (remplace tout).</p>
+    <p class="small" style="margin-top:0"><b>Un hélicoptère</b> : le texte contient les réglages de l'hélicoptère sélectionné en haut de la page (sans les saisies du vol). Pour les copier dans l'autre, choisis l'autre hélicoptère en haut, colle le texte, puis touche « Importer dans… ». Seul l'hélicoptère sélectionné est modifié.<br><b>Tout</b> : sauvegarde complète des deux hélicoptères, pour changer de téléphone par exemple.</p>
     <textarea id="exportBox" spellcheck="false"></textarea>
     <div class="btnrow">
-      <button class="btn" id="btnExport">Générer / copier</button>
-      <button class="btn danger" id="btnImport">Importer ce texte</button>
+      <button class="btn" id="btnExportOne">Copier les réglages</button>
+      <button class="btn danger" id="btnImportOne">Importer ici</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="btnExport">Tout copier (A + B)</button>
+      <button class="btn danger" id="btnImport">Tout importer (A + B)</button>
     </div>
     <div class="small" id="exportMsg" style="margin-top:8px"></div>
+    <div class="btnrow" id="pickBox"></div>
   </div>
 </section>
 
@@ -304,6 +309,7 @@ function renderTabs() {
     `<button class="tab ${store.active === k ? 'on' : ''}" data-k="${k}">${esc(store.aircraft[k].name)}</button>`).join('');
   $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => {
     store.active = b.dataset.k; save(); renderTabs(); renderAll();
+    if (!$('pageSettings').classList.contains('hidden')) renderSettings(); // les réglages suivent l'hélicoptère choisi
   });
 }
 
@@ -555,7 +561,10 @@ function renderSettingsBase() {
     };
   });
   $('setDensity').value = isNum(a.density) ? a.density : '';
-  $('exportBox').value = ''; $('exportMsg').textContent = '';
+  $('exportBox').value = ''; $('exportMsg').textContent = ''; $('pickBox').innerHTML = '';
+  $('setTitle').textContent = 'Réglages : ' + a.name;
+  $('btnExportOne').textContent = 'Copier les réglages de ' + a.name;
+  $('btnImportOne').textContent = 'Importer dans ' + a.name;
 
   $('setPoints').innerHTML = a.envelope.map((p, i) => `
     <div class="ptrow" data-i="${i}">
@@ -643,9 +652,51 @@ $('btnImport').onclick = () => {
   try {
     const s = JSON.parse($('exportBox').value);
     if (!s || !s.aircraft || !s.aircraft.A || !s.aircraft.B) throw new Error('format');
-    if (!confirm('Remplacer tous les réglages actuels par ce texte ?')) return;
-    store = s; save(); renderTabs(); renderSettings(); $('exportMsg').textContent = 'Réglages importés.';
+    if (!confirm('Remplacer TOUS les réglages (les deux hélicoptères) par ce texte ?')) return;
+    s.active = store.active; store = s; save(); renderTabs(); renderSettings(); $('exportMsg').textContent = 'Réglages des deux hélicoptères importés.';
   } catch (e) { $('exportMsg').textContent = 'Texte invalide : import annulé.'; }
+};
+
+// ---------------- Copie des réglages d'un seul hélicoptère ----------------
+// Le texte d'un hélicoptère ne contient que ses réglages (pas les saisies du vol).
+// L'import ne modifie que l'hélicoptère sélectionné et lui garde son nom.
+const one = a => { const c = JSON.parse(JSON.stringify(a)); delete c.values; delete c.removed; delete c.catOpen; delete c.setOpen; return c; };
+const validAircraft = c => !!c && Array.isArray(c.stations) && Array.isArray(c.envelope) &&
+  c.stations.every(s => s && typeof s.id === 'string' && typeof s.type === 'string') &&
+  c.envelope.every(p => p && typeof p === 'object');
+function applyOne(src, label) {
+  const keep = ac().name;
+  if (!confirm("Remplacer les réglages de " + keep + " par " + label + " ?\nL'autre hélicoptère ne sera pas modifié.")) return;
+  const c = one(src);
+  c.name = keep; c.values = {}; c.removed = {}; c.catOpen = {}; c.setOpen = {};
+  store.aircraft[store.active] = c; save(); renderTabs(); renderSettings();
+  $('exportMsg').textContent = 'Réglages importés dans ' + keep + " (l'autre hélicoptère n'a pas changé).";
+}
+$('btnExportOne').onclick = async () => {
+  const a = ac(), box = $('exportBox');
+  box.value = JSON.stringify({ type: 'masse-centrage-helico', version: 1, aircraft: one(a) });
+  box.focus(); box.select();
+  try { await navigator.clipboard.writeText(box.value); $('exportMsg').textContent = 'Réglages de ' + a.name + ' copiés (sans les saisies du vol).'; }
+  catch (e) { $('exportMsg').textContent = 'Sélectionne et copie le texte ci-dessus.'; }
+};
+$('btnImportOne').onclick = () => {
+  let s;
+  try { s = JSON.parse($('exportBox').value); } catch (e) { $('exportMsg').textContent = 'Texte invalide : import annulé.'; return; }
+  if (s && s.type === 'masse-centrage-helico' && validAircraft(s.aircraft)) { applyOne(s.aircraft, 'le texte collé'); return; }
+  if (s && s.aircraft && validAircraft(s.aircraft.A) && validAircraft(s.aircraft.B)) {
+    // sauvegarde complète : choisir lequel des deux hélicoptères du texte copier ici
+    const pick = $('pickBox'); pick.innerHTML = '';
+    $('exportMsg').textContent = 'Ce texte contient les deux hélicoptères. Lequel copier dans ' + ac().name + ' ?';
+    ['A', 'B'].forEach(k => {
+      const nm = s.aircraft[k].name || k;
+      const b = document.createElement('button'); b.className = 'btn';
+      b.textContent = 'Prendre « ' + nm + ' » du texte';
+      b.onclick = () => { pick.innerHTML = ''; applyOne(s.aircraft[k], '« ' + nm + ' » du texte'); };
+      pick.appendChild(b);
+    });
+    return;
+  }
+  $('exportMsg').textContent = 'Texte invalide : import annulé.';
 };
 
 // ---------------- Démarrage ----------------

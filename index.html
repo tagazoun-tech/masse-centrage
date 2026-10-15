@@ -148,6 +148,8 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
     <span><i style="background:#17bdff"></i>Plein carburant</span>
   </div>
 
+  <div class="btnrow" style="justify-content:center;margin-top:8px"><button class="btn" id="btnZoom">🔍 Zoom sur les points</button></div>
+
   <h2>Chargement</h2>
   <div id="rows"></div>
 
@@ -439,7 +441,9 @@ function renderRecap(a, cur) {
 }
 
 // ---------------- Graphique ----------------
-function drawGraph(a, cur) {
+let graphZoom = false;
+function drawGraph(a, cur, zoomOverride) {
+  const zoom = zoomOverride === undefined ? graphZoom : zoomOverride;
   const svg = $('graph');
   const W = 360, H = 280, L = 52, R = 16, T = 30, B = 46;
   const env = a.envelope.filter(p => isNum(p.arm) && isNum(p.mass));
@@ -462,17 +466,23 @@ function drawGraph(a, cur) {
     if (hi && hi.cg !== null) pts.push({ c: '#17bdff', p: hi });
     pts.forEach(q => { x0 = Math.min(x0, q.p.cg); x1 = Math.max(x1, q.p.cg); y0 = Math.min(y0, q.p.mass); y1 = Math.max(y1, q.p.mass); });
   }
-  x0 -= px; x1 += px; y0 -= py; y1 += py;
+  if (zoom && pts.length) {
+    // zoom : la vue se resserre autour des points (l'enveloppe est tronquée par le cadre)
+    const cxs = pts.map(q => q.p.cg), cys = pts.map(q => q.p.mass);
+    const zx = Math.max(Math.max(...cxs) - Math.min(...cxs), 0.03), zy = Math.max(Math.max(...cys) - Math.min(...cys), 30);
+    const mx = (Math.max(...cxs) + Math.min(...cxs)) / 2, my = (Math.max(...cys) + Math.min(...cys)) / 2;
+    x0 = mx - zx * 0.8; x1 = mx + zx * 0.8; y0 = my - zy * 0.8; y1 = my + zy * 0.8;
+  } else { x0 -= px; x1 += px; y0 -= py; y1 += py; }
   // bornes et graduations « rondes » pour que les axes restent lisibles
   const niceStep = (range, steps) => steps.find(t => range / t <= 6) || steps[steps.length - 1];
-  const sy = niceStep(y1 - y0, [10, 20, 25, 50, 100, 200, 250, 500, 1000]);
-  const sx = niceStep(x1 - x0, [0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5, 1]);
+  const sy = niceStep(y1 - y0, [5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]);
+  const sx = niceStep(x1 - x0, [0.005, 0.01, 0.02, 0.025, 0.05, 0.1, 0.2, 0.25, 0.5, 1]);
   y0 = Math.floor(y0 / sy + 1e-9) * sy; y1 = Math.ceil(y1 / sy - 1e-9) * sy;
   x0 = Math.floor(x0 / sx + 1e-9) * sx; x1 = Math.ceil(x1 / sx - 1e-9) * sx;
   const X = v => L + (v - x0) / (x1 - x0) * (W - L - R);
   const Y = v => H - B - (v - y0) / (y1 - y0) * (H - T - B);
   let s = '';
-  const ny = Math.round((y1 - y0) / sy), nx = Math.round((x1 - x0) / sx), dx = sx === 0.025 ? 3 : 2;
+  const ny = Math.round((y1 - y0) / sy), nx = Math.round((x1 - x0) / sx), dx = (sx === 0.025 || sx < 0.01) ? 3 : 2;
   for (let k = 0; k <= ny; k++) {
     const mv = y0 + k * sy, gy = Y(mv).toFixed(1);
     s += `<line x1="${L}" y1="${gy}" x2="${W - R}" y2="${gy}" stroke="var(--line)" stroke-width="1"/>`;
@@ -485,9 +495,12 @@ function drawGraph(a, cur) {
   }
   s += `<text x="${L}" y="14" font-size="11.5" font-weight="600" fill="var(--ink)">Masse (kg)</text>`;
   s += `<text x="${W - R}" y="${H - 6}" text-anchor="end" font-size="11.5" font-weight="600" fill="var(--ink)">Bras de levier (m)</text>`;
+  s += `<clipPath id="gclip"><rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}"/></clipPath><g clip-path="url(#gclip)">`;
   s += `<polygon points="${env.map(p => X(p.arm).toFixed(1) + ',' + Y(p.mass).toFixed(1)).join(' ')}" fill="rgba(255,92,92,.07)" stroke="#ff5c5c" stroke-width="2" stroke-linejoin="round"/>`;
   if (pts.length > 1) s += `<polyline points="${pts.map(q => X(q.p.cg).toFixed(1) + ',' + Y(q.p.mass).toFixed(1)).join(' ')}" fill="none" stroke="var(--muted)" stroke-width="1.2" stroke-dasharray="4 3"/>`;
-  pts.forEach(q => { s += `<circle cx="${X(q.p.cg).toFixed(1)}" cy="${Y(q.p.mass).toFixed(1)}" r="7" fill="${q.c}" stroke="var(--panel)" stroke-width="2"/>`; });
+  s += '</g>';
+  pts.forEach(q => { s += `<circle cx="${X(q.p.cg).toFixed(1)}" cy="${Y(q.p.mass).toFixed(1)}" r="4.5" fill="${q.c}" stroke="var(--panel)" stroke-width="1.5"/>`; });
+  const zb = $('btnZoom'); if (zb) zb.textContent = graphZoom ? '↩ Vue complète' : '🔍 Zoom sur les points';
   svg.innerHTML = s;
 }
 
@@ -711,11 +724,14 @@ $('btnImportOne').onclick = () => {
   $('exportMsg').textContent = 'Texte invalide : import annulé.';
 };
 
+$('btnZoom').onclick = () => { graphZoom = !graphZoom; update(); };
+
 // ---------------- Fiche de pesée (image PNG à partager) ----------------
 const LIGHT = { '--muted': '#5d6b80', '--line': '#d3dae6', '--ink': '#16202e', '--panel': '#ffffff' };
 function ficheGraphSvg(a, cur) {
-  drawGraph(a, cur);
+  drawGraph(a, cur, false); // la fiche montre toujours l'enveloppe entière
   let inner = $('graph').innerHTML;
+  drawGraph(a, cur);        // on remet l'affichage choisi à l'écran
   Object.keys(LIGHT).forEach(k => { inner = inner.split('var(' + k + ')').join(LIGHT[k]); });
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 280" width="900" height="700" font-family="Helvetica, Arial, sans-serif"><rect width="360" height="280" fill="#ffffff"/>' + inner + '</svg>';
 }

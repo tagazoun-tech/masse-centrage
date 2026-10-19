@@ -50,8 +50,9 @@ input[disabled]{opacity:.55;}
 .sumbar{padding:0 0 8px;}
 .sumbar .result{font-size:13.5px;line-height:1.3;}
 .sumbar .status{margin:6px auto 0;padding:7px 10px;font-size:14px;}
-.tabs{display:flex;gap:6px;flex:1;}
-.tab{flex:1;padding:10px 8px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:700;text-align:center;}
+.tabs{display:flex;gap:6px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{flex:1 0 auto;min-width:84px;white-space:nowrap;padding:10px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:700;text-align:center;}
 .tab.on{background:var(--accent);border-color:var(--accent);color:#04202e;}
 .iconbtn{padding:10px 14px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-weight:600;}
 
@@ -119,6 +120,11 @@ tfoot td{font-weight:800;border-bottom:none;}
 .small{font-size:12.5px;color:var(--muted);line-height:1.5;}
 .notice{border:1px solid var(--warn);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.5;margin-top:12px;}
 .hidden{display:none !important;}
+.dlg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50;}
+.dlgbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+#dlgMsg{white-space:pre-line;line-height:1.5;font-size:15px;}
+.dlgbox .btnrow{justify-content:flex-end;margin-top:16px;}
+.dlgbox .btn{padding:12px 16px;}
 textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16px;}
 </style>
 </head>
@@ -173,7 +179,21 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
   <div class="btnrow" style="margin-top:0"><button class="btn primary" id="btnBack">← Retour au calcul</button></div>
   <p class="small">Chaque modification est enregistrée automatiquement sur cet appareil. Les réglages sont propres à l'hélicoptère sélectionné en haut.</p>
 
-  <h2>Hélicoptère</h2>
+  <h2>Mes hélicoptères</h2>
+  <div class="card">
+    <p class="small" style="margin-top:0">Choisis l'hélicoptère à régler avec les onglets en haut de la page. Chacun a ses propres réglages et saisies.</p>
+    <div class="btnrow" style="margin-top:0">
+      <button class="btn primary" id="btnAddAc">+ Ajouter un hélicoptère</button>
+      <button class="btn" id="btnDupAc">Dupliquer celui-ci</button>
+    </div>
+    <div class="btnrow">
+      <button class="btn" id="btnAcLeft">← Décaler</button>
+      <button class="btn" id="btnAcRight">Décaler →</button>
+      <button class="btn danger" id="btnDelAc" style="margin-left:auto">Supprimer celui-ci</button>
+    </div>
+  </div>
+
+  <h2>Hélicoptère sélectionné</h2>
   <div class="card">
     <label class="f">Nom</label><input id="setName">
     <label class="f">Densité du carburant (kg/L)</label><input id="setDensity" type="number" step="any" inputmode="decimal">
@@ -198,21 +218,28 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
 
   <h2>Sauvegarde et copie des réglages</h2>
   <div class="card">
-    <p class="small" style="margin-top:0"><b>Un hélicoptère</b> : le texte contient les réglages de l'hélicoptère sélectionné en haut de la page (sans les saisies du vol). Pour les copier dans l'autre, choisis l'autre hélicoptère en haut, colle le texte, puis touche « Importer dans… ». Seul l'hélicoptère sélectionné est modifié.<br><b>Tout</b> : sauvegarde complète des deux hélicoptères, pour changer de téléphone par exemple.</p>
+    <p class="small" style="margin-top:0"><b>Un hélicoptère</b> : le texte contient les réglages de l'hélicoptère sélectionné en haut de la page (sans les saisies du vol). Pour les copier dans un autre, choisis celui-ci en haut, colle le texte, puis touche « Importer dans… ». Seul l'hélicoptère sélectionné est modifié.<br><b>Tout</b> : sauvegarde complète de tous les hélicoptères, pour changer de téléphone par exemple.</p>
     <textarea id="exportBox" spellcheck="false"></textarea>
     <div class="btnrow">
       <button class="btn" id="btnExportOne">Copier les réglages</button>
       <button class="btn danger" id="btnImportOne">Importer ici</button>
     </div>
     <div class="btnrow">
-      <button class="btn" id="btnExport">Tout copier (A + B)</button>
-      <button class="btn danger" id="btnImport">Tout importer (A + B)</button>
+      <button class="btn" id="btnExport">Tout copier</button>
+      <button class="btn danger" id="btnImport">Tout importer</button>
     </div>
     <div class="small" id="exportMsg" style="margin-top:8px"></div>
     <div class="btnrow" id="pickBox"></div>
   </div>
 </section>
 
+</div>
+
+<div id="dlg" class="dlg hidden" role="dialog" aria-modal="true">
+  <div class="dlgbox">
+    <div id="dlgMsg"></div>
+    <div class="btnrow"><button class="btn" id="dlgNo">Annuler</button><button class="btn danger" id="dlgYes">Confirmer</button></div>
+  </div>
 </div>
 
 <script>
@@ -245,14 +272,21 @@ function newAircraft(name) {
     values: {}
   };
 }
-function newStore() { return { active: 'A', aircraft: { A: newAircraft('Morpho A'), B: newAircraft('Morpho B') } }; }
+function newStore() { return { active: 'A', order: ['A', 'B'], aircraft: { A: newAircraft('Morpho A'), B: newAircraft('Morpho B') } }; }
+// Liste des hélicoptères : nombre libre, ordre des onglets conservé dans store.order
+function normalizeStore(s) {
+  s.order = (Array.isArray(s.order) ? s.order : []).filter(k => s.aircraft[k]);
+  Object.keys(s.aircraft).forEach(k => { if (!s.order.includes(k)) s.order.push(k); });
+  if (!s.aircraft[s.active]) s.active = s.order[0];
+  return s;
+}
 
 let store;
 let memoryOnly = false;
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.aircraft && s.aircraft.A && s.aircraft.B) return s; }
+    if (raw) { const s = JSON.parse(raw); if (s && s.aircraft && typeof s.aircraft === 'object' && Object.keys(s.aircraft).length) return normalizeStore(s); }
   } catch (e) { memoryOnly = true; }
   return newStore();
 }
@@ -317,9 +351,20 @@ function pointInPolygon(x, y, poly) {
 // ---------------- Rendu principal ----------------
 const $ = id => document.getElementById(id);
 
+// Confirmation affichée dans la page (la boîte de dialogue du navigateur est bloquée dans certains cas : appli installée, aperçu intégré…)
+function ask(msg, yesLabel, onYes) {
+  const close = () => $('dlg').classList.add('hidden');
+  $('dlgMsg').textContent = msg; $('dlgYes').textContent = yesLabel || 'Confirmer';
+  $('dlgNo').onclick = close;
+  $('dlgYes').onclick = () => { close(); onYes(); };
+  $('dlg').classList.remove('hidden'); $('dlgNo').focus();
+}
+
 function renderTabs() {
-  $('tabs').innerHTML = ['A', 'B'].map(k =>
+  $('tabs').innerHTML = store.order.map(k =>
     `<button class="tab ${store.active === k ? 'on' : ''}" data-k="${k}">${esc(store.aircraft[k].name)}</button>`).join('');
+  const onTab = $('tabs').querySelector('.tab.on');
+  if (onTab) $('tabs').scrollLeft = Math.max(0, onTab.offsetLeft - 24);
   $('tabs').querySelectorAll('.tab').forEach(b => b.onclick = () => {
     store.active = b.dataset.k; save(); renderTabs(); renderAll();
     if (!$('pageSettings').classList.contains('hidden')) renderSettings(); // les réglages suivent l'hélicoptère choisi
@@ -516,7 +561,47 @@ function showSettings(on) {
   window.scrollTo(0, 0);
 }
 
-function renderSettings() { renderSettingsBase(); groupSettings(ac()); }
+function renderSettings() {
+  renderSettingsBase(); groupSettings(ac());
+  const i = store.order.indexOf(store.active), n = store.order.length;
+  $('btnAcLeft').disabled = i <= 0; $('btnAcRight').disabled = i >= n - 1; $('btnDelAc').disabled = n <= 1;
+}
+
+// ---- ajouter / dupliquer / décaler / supprimer un hélicoptère ----
+function uniqueName(base) {
+  const names = store.order.map(k => store.aircraft[k].name);
+  if (!names.includes(base)) return base;
+  let n = 2; while (names.includes(base + ' ' + n)) n++;
+  return base + ' ' + n;
+}
+function addAircraft(a) {
+  const id = uid(); store.aircraft[id] = a; store.order.push(id); store.active = id;
+  save(); renderTabs(); renderAll(); renderSettings(); window.scrollTo(0, 0);
+}
+$('btnAddAc').onclick = () => addAircraft(newAircraft(uniqueName('Nouvel hélicoptère')));
+$('btnDupAc').onclick = () => {
+  const c = JSON.parse(JSON.stringify(ac()));
+  c.name = uniqueName(c.name + ' (copie)'); c.values = {}; c.removed = {}; c.catOpen = {}; c.setOpen = {};
+  addAircraft(c);
+};
+function moveAircraft(d) {
+  const i = store.order.indexOf(store.active), j = i + d;
+  if (j < 0 || j >= store.order.length) return;
+  [store.order[i], store.order[j]] = [store.order[j], store.order[i]];
+  save(); renderTabs(); renderSettings();
+}
+$('btnAcLeft').onclick = () => moveAircraft(-1);
+$('btnAcRight').onclick = () => moveAircraft(1);
+$('btnDelAc').onclick = () => {
+  if (store.order.length <= 1) return;
+  const a = ac();
+  ask('Supprimer l\'hélicoptère « ' + a.name + ' » et tous ses réglages ?\nCette action est définitive.', 'Supprimer', () => {
+    const i = store.order.indexOf(store.active);
+    delete store.aircraft[store.active]; store.order.splice(i, 1);
+    store.active = store.order[Math.min(i, store.order.length - 1)];
+    save(); renderTabs(); renderAll(); renderSettings(); window.scrollTo(0, 0);
+  });
+};
 
 // Dès qu'une catégorie existe : les stations des réglages sont rangées en sections déroulantes
 function groupSettings(a) {
@@ -579,10 +664,10 @@ function renderSettingsBase() {
     });
     card.querySelector('[data-crm]').onclick = () => {
       const c = a.categories[i];
-      if (confirm('Supprimer la catégorie « ' + c.name + ' » ? Ses stations passent sans catégorie et restent comptées dans le calcul.')) {
+      ask('Supprimer la catégorie « ' + c.name + ' » ?\nSes stations passent sans catégorie et restent comptées dans le calcul.', 'Supprimer', () => {
         a.stations.forEach(s => { if (s.cat === c.id) s.cat = ''; });
         a.categories.splice(i, 1); save(); renderSettings();
-      }
+      });
     };
   });
   $('setDensity').value = isNum(a.density) ? a.density : '';
@@ -652,7 +737,7 @@ function renderSettingsBase() {
       [a.stations[i], a.stations[j]] = [a.stations[j], a.stations[i]]; save(); renderSettings();
     });
     card.querySelector('[data-rm]').onclick = () => {
-      if (confirm('Supprimer la station « ' + a.stations[i].name + ' » ?')) { a.stations.splice(i, 1); save(); renderSettings(); }
+      ask('Supprimer la station « ' + a.stations[i].name + ' » ?', 'Supprimer', () => { a.stations.splice(i, 1); save(); renderSettings(); });
     };
   });
 }
@@ -666,7 +751,7 @@ $('btnAddStation').onclick = () => { ensureCats(ac()); ac().setOpen._none = true
 $('btnAddCat').onclick = () => { const a = ac(); ensureCats(a); const nc = { id: uid(), name: 'Nouvelle catégorie' }; a.categories.push(nc); a.setOpen[nc.id] = true; save(); renderSettings(); };
 $('btnSettings').onclick = () => showSettings(true);
 $('btnBack').onclick = () => showSettings(false);
-$('btnReset').onclick = () => { if (confirm('Remettre toutes les saisies de ' + ac().name + ' à leur valeur par défaut ?')) { ac().values = {}; ac().removed = {}; save(); renderAll(); } };
+$('btnReset').onclick = () => ask('Remettre toutes les saisies de ' + ac().name + ' à leur valeur par défaut ?', 'Remettre à zéro', () => { ac().values = {}; ac().removed = {}; save(); renderAll(); });
 
 $('btnExport').onclick = async () => {
   const box = $('exportBox'); box.value = JSON.stringify(store); box.focus(); box.select();
@@ -676,9 +761,11 @@ $('btnExport').onclick = async () => {
 $('btnImport').onclick = () => {
   try {
     const s = JSON.parse($('exportBox').value);
-    if (!s || !s.aircraft || !s.aircraft.A || !s.aircraft.B) throw new Error('format');
-    if (!confirm('Remplacer TOUS les réglages (les deux hélicoptères) par ce texte ?')) return;
-    s.active = store.active; store = s; save(); renderTabs(); renderSettings(); $('exportMsg').textContent = 'Réglages des deux hélicoptères importés.';
+    if (!s || !s.aircraft || typeof s.aircraft !== 'object' || !Object.keys(s.aircraft).length || !Object.keys(s.aircraft).every(k => validAircraft(s.aircraft[k]))) throw new Error('format');
+    ask('Remplacer TOUS les réglages (tous les hélicoptères) par ce texte ?', 'Remplacer', () => {
+      s.active = store.aircraft[store.active] && s.aircraft[store.active] ? store.active : s.active;
+      store = normalizeStore(s); save(); renderTabs(); renderAll(); renderSettings(); $('exportMsg').textContent = 'Réglages de tous les hélicoptères importés.';
+    });
   } catch (e) { $('exportMsg').textContent = 'Texte invalide : import annulé.'; }
 };
 
@@ -691,11 +778,12 @@ const validAircraft = c => !!c && Array.isArray(c.stations) && Array.isArray(c.e
   c.envelope.every(p => p && typeof p === 'object');
 function applyOne(src, label) {
   const keep = ac().name;
-  if (!confirm("Remplacer les réglages de " + keep + " par " + label + " ?\nL'autre hélicoptère ne sera pas modifié.")) return;
-  const c = one(src);
-  c.name = keep; c.values = {}; c.removed = {}; c.catOpen = {}; c.setOpen = {};
-  store.aircraft[store.active] = c; save(); renderTabs(); renderSettings();
-  $('exportMsg').textContent = 'Réglages importés dans ' + keep + " (l'autre hélicoptère n'a pas changé).";
+  ask("Remplacer les réglages de " + keep + " par " + label + " ?\nLes autres hélicoptères ne seront pas modifiés.", 'Remplacer', () => {
+    const c = one(src);
+    c.name = keep; c.values = {}; c.removed = {}; c.catOpen = {}; c.setOpen = {};
+    store.aircraft[store.active] = c; save(); renderTabs(); renderSettings();
+    $('exportMsg').textContent = 'Réglages importés dans ' + keep + " (les autres hélicoptères n'ont pas changé).";
+  });
 }
 $('btnExportOne').onclick = async () => {
   const a = ac(), box = $('exportBox');
@@ -708,11 +796,11 @@ $('btnImportOne').onclick = () => {
   let s;
   try { s = JSON.parse($('exportBox').value); } catch (e) { $('exportMsg').textContent = 'Texte invalide : import annulé.'; return; }
   if (s && s.type === 'masse-centrage-helico' && validAircraft(s.aircraft)) { applyOne(s.aircraft, 'le texte collé'); return; }
-  if (s && s.aircraft && validAircraft(s.aircraft.A) && validAircraft(s.aircraft.B)) {
-    // sauvegarde complète : choisir lequel des deux hélicoptères du texte copier ici
+  if (s && s.aircraft && typeof s.aircraft === 'object' && Object.keys(s.aircraft).length && Object.keys(s.aircraft).every(k => validAircraft(s.aircraft[k]))) {
+    // sauvegarde complète : choisir lequel des hélicoptères du texte copier ici
     const pick = $('pickBox'); pick.innerHTML = '';
-    $('exportMsg').textContent = 'Ce texte contient les deux hélicoptères. Lequel copier dans ' + ac().name + ' ?';
-    ['A', 'B'].forEach(k => {
+    $('exportMsg').textContent = 'Ce texte contient plusieurs hélicoptères. Lequel copier dans ' + ac().name + ' ?';
+    (Array.isArray(s.order) ? s.order.filter(k => s.aircraft[k]) : Object.keys(s.aircraft)).forEach(k => {
       const nm = s.aircraft[k].name || k;
       const b = document.createElement('button'); b.className = 'btn';
       b.textContent = 'Prendre « ' + nm + ' » du texte';

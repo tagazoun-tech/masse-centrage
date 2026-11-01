@@ -10,6 +10,10 @@
 <meta name="format-detection" content="telephone=no">
 <meta name="theme-color" content="#f3f5f9" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0c1a26" media="(prefers-color-scheme: dark)">
+<script>
+// thème choisi (appliqué tout de suite pour éviter un éclair de la mauvaise couleur) : auto = réglage du téléphone
+try { var t = localStorage.getItem('masse-centrage-theme'); if (t === 'light' || t === 'dark') document.documentElement.setAttribute('data-theme', t); } catch (e) {}
+</script>
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="manifest" href="manifest.webmanifest">
 <title>Masse et centrage</title>
@@ -95,6 +99,14 @@ details.cat>summary .cn{flex:1;}
 details.cat>summary .ct{font-weight:600;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;}
 details.cat .row:last-child{border-bottom:none;}
 details.cat.set{background:transparent;}
+.card.stcard{padding:0 12px;}
+details.stn>summary{list-style:none;display:flex;align-items:center;gap:10px;padding:13px 0;cursor:pointer;font-weight:700;color:var(--gold);}
+details.stn>summary::-webkit-details-marker{display:none;}
+details.stn>summary::before{content:"▸";color:var(--muted);display:inline-block;width:12px;flex:none;}
+details.stn[open]>summary::before{content:"▾";}
+details.stn>summary .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+details.stn>summary .ct{font-weight:600;font-size:12.5px;color:var(--muted);white-space:nowrap;flex:none;}
+.stbody{border-top:1px solid var(--line);padding:8px 0 12px;}
 
 /* recap */
 table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums;}
@@ -129,6 +141,7 @@ tfoot td{font-weight:800;border-bottom:none;}
 .docbtn{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;margin-left:8px;border-radius:50%;border:1px solid var(--line);background:var(--panel);font-size:17px;line-height:1;padding:0;vertical-align:middle;}
 .title #acTitle{vertical-align:middle;}
 label.btn{display:inline-block;cursor:pointer;}
+@media (max-width:460px){ #btnSettings .lbl{display:none;} #btnSettings,#btnTheme{padding:10px 12px;} .tab{min-width:70px;} }
 .cfg .stlinks{margin-top:6px;flex-wrap:nowrap;gap:5px;}
 .cfg .btn{padding:9px 5px;font-size:13px;white-space:nowrap;flex:1 1 auto;min-width:0;}
 .cfg .btn[data-act="del"]{margin-left:0 !important;}
@@ -143,7 +156,8 @@ textarea{min-height:120px;font-family:ui-monospace,Menlo,monospace;font-size:16p
 <div class="stickyhead">
   <div class="topbar">
     <div class="tabs" id="tabs"></div>
-    <button class="iconbtn" id="btnSettings" aria-label="Réglages">⚙ Réglages</button>
+    <button class="iconbtn" id="btnSettings" aria-label="Réglages">⚙<span class="lbl"> Réglages</span></button>
+    <button class="iconbtn" id="btnTheme" type="button"></button>
   </div>
   <div class="sumbar" id="sumBar">
     <div class="result" id="resLine"></div>
@@ -741,8 +755,9 @@ function groupSettings(a) {
     if (key) {
       const add = document.createElement('div');
       add.className = 'btnrow';
+      add.style.margin = '28px 0 14px';
       add.innerHTML = '<button class="btn">+ Ajouter une station ici</button>';
-      add.firstChild.onclick = () => { a.stations.push({ ...st('Nouvelle station', '', 'var', 150), cat: key }); a.setOpen[key] = true; save(); renderSettings(); };
+      add.firstChild.onclick = () => { const ns = { ...st('Nouvelle station', '', 'var', 150), cat: key }; a.stations.push(ns); a.setOpen[key] = true; a.setOpen['st_' + ns.id] = true; save(); renderSettings(); };
       det.appendChild(add);
     }
     host.appendChild(det);
@@ -806,8 +821,16 @@ function renderSettingsBase() {
   $('setPoints').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { a.envelope.splice(+b.dataset.del, 1); save(); renderSettings(); });
 
   const typeOpts = [['empty', 'Masse à vide (fixe)'], ['fuel', 'Carburant (' + (fuelKg(a) ? 'kg' : 'litres') + ')'], ['var', 'Charge variable (kg)'], ['fixed', 'Équipement amovible (à bord / déposé)']];
+  const stType = { empty: 'Masse à vide', fuel: 'Carburant', var: 'Charge', fixed: 'Équipement' };
+  const stSum = s => {
+    const bad = !isNum(s.arm) || ((s.type === 'fuel' || s.type === 'var') && !isNum(s.max)) || ((s.type === 'empty' || s.type === 'fixed') && !isNum(s.def));
+    return (bad ? '⚠ ' : '') + stType[s.type] + (s.visible ? '' : ' · masquée') + (isNum(s.arm) ? ' · ' + s.arm + ' m' : '');
+  };
   $('setStations').innerHTML = a.stations.map((s, i) => `
-    <div class="card" data-i="${i}">
+    <div class="card stcard" data-i="${i}">
+     <details class="stn" ${a.setOpen['st_' + s.id] ? 'open' : ''}>
+      <summary><span class="cn">${esc(s.name || 'Sans nom')}</span><span class="ct">${esc(stSum(s))}</span></summary>
+      <div class="stbody">
       <div class="grid2">
         <div><label class="f">Nom</label><input data-f="name" value="${esc(s.name)}"></div>
         <div><label class="f">Type</label><select data-f="type">${typeOpts.map(o => `<option value="${o[0]}" ${s.type === o[0] ? 'selected' : ''}>${o[1]}</option>`).join('')}</select></div>
@@ -828,9 +851,14 @@ function renderSettingsBase() {
         <button class="btn" data-mv="1" ${i === a.stations.length - 1 ? 'disabled' : ''}>↓</button>
         <button class="btn danger" data-rm="1" style="margin-left:auto">Supprimer</button>
       </div>
+      </div>
+     </details>
     </div>`).join('');
   $('setStations').querySelectorAll('.card').forEach(card => {
     const i = +card.dataset.i;
+    const dt = card.querySelector('details.stn'), sumEl = dt.querySelector('summary');
+    dt.addEventListener('toggle', () => { a.setOpen['st_' + a.stations[i].id] = dt.open; save(); });
+    const refreshSum = () => { const s = a.stations[i]; sumEl.querySelector('.cn').textContent = s.name || 'Sans nom'; sumEl.querySelector('.ct').textContent = stSum(s); };
     card.querySelectorAll('[data-f]').forEach(inp => {
       const f = inp.dataset.f;
       const handler = () => {
@@ -841,7 +869,7 @@ function renderSettingsBase() {
         if (f === 'defRemoved') { s.defRemoved = inp.checked; save(); return; }
         if (f === 'cat') { s.cat = inp.value; ensureCats(a); a.setOpen[s.cat || '_none'] = true; save(); renderSettings(); return; }
         if (f === 'name' || f === 'desc') s[f] = inp.value; else if (f === 'arm') s[f] = num(inp.value); else s[f] = r1(num(inp.value));
-        save();
+        save(); refreshSum();
       };
       inp.addEventListener(inp.tagName === 'SELECT' || inp.type === 'checkbox' ? 'change' : 'input', handler);
       if (f === 'def' || f === 'max') inp.addEventListener('change', () => { const v = a.stations[i][f]; inp.value = isNum(v) ? v : ''; });
@@ -982,8 +1010,23 @@ $('docFile').onchange = async () => {
 $('setName').addEventListener('input', () => { ac().name = $('setName').value || 'Sans nom'; save(); renderTabs(); });
 $('setDensity').addEventListener('input', () => { ac().density = num($('setDensity').value); save(); });
 $('btnAddPoint').onclick = () => { ac().envelope.push({ arm: null, mass: null }); save(); renderSettings(); };
-$('btnAddStation').onclick = () => { ensureCats(ac()); ac().setOpen._none = true; ac().stations.push(st('Nouvelle station', '', 'var', 150)); save(); renderSettings(); };
+$('btnAddStation').onclick = () => { ensureCats(ac()); ac().setOpen._none = true; const ns = st('Nouvelle station', '', 'var', 150); ac().stations.push(ns); ac().setOpen['st_' + ns.id] = true; save(); renderSettings(); };
 $('btnAddCat').onclick = () => { const a = ac(); ensureCats(a); const nc = { id: uid(), name: 'Nouvelle catégorie' }; a.categories.push(nc); a.setOpen[nc.id] = true; save(); renderSettings(); };
+// ---- thème : Auto (réglage du téléphone) → Clair → Sombre ; mémorisé sur cet appareil ----
+const THEMES = { auto: ['🌓', 'Automatique (suit le téléphone)'], light: ['☀️', 'Clair'], dark: ['🌙', 'Sombre'] };
+function getTheme() { try { const t = localStorage.getItem('masse-centrage-theme'); return THEMES[t] ? t : 'auto'; } catch (e) { return 'auto'; } }
+function applyTheme(t) {
+  const r = document.documentElement;
+  if (t === 'light' || t === 'dark') r.setAttribute('data-theme', t); else r.removeAttribute('data-theme');
+  const b = $('btnTheme'); b.textContent = THEMES[t][0]; b.title = 'Thème : ' + THEMES[t][1];
+  b.setAttribute('aria-label', 'Thème : ' + THEMES[t][1] + '. Toucher pour changer.');
+}
+$('btnTheme').onclick = () => {
+  const order = ['auto', 'light', 'dark'], t = order[(order.indexOf(getTheme()) + 1) % 3];
+  try { localStorage.setItem('masse-centrage-theme', t); } catch (e) {}
+  applyTheme(t); toast('Thème : ' + THEMES[t][1]);
+};
+applyTheme(getTheme());
 $('btnSettings').onclick = () => showSettings(true);
 $('btnBack').onclick = () => showSettings(false);
 $('btnReset').onclick = () => ask('Remettre toutes les saisies de ' + ac().name + ' à leur valeur par défaut ?', 'Remettre à zéro', () => { ac().values = {}; ac().removed = {}; save(); renderAll(); });

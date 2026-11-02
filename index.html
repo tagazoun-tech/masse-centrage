@@ -305,7 +305,7 @@ function st(name, desc, type, max, visible = true) {
 }
 function newAircraft(name) {
   return {
-    name, density: 0.8, fuelUnit: 'L', configs: [], envelope: [],
+    name, density: 0.8, fuelUnit: 'L', envelope: [],
     stations: [
       { id: uid(), name: 'Masse à vide', desc: 'Pesée de l\'appareil', type: 'empty', arm: null, max: null, def: null, visible: true },
       st('Carburant', 'Saisi en litres', 'fuel', null),
@@ -320,9 +320,30 @@ function newAircraft(name) {
     values: {}
   };
 }
-function newStore() { return { active: 'A', order: ['A', 'B'], aircraft: { A: newAircraft('Morpho A'), B: newAircraft('Morpho B') } }; }
+function newStore() { return { active: 'A', order: ['A', 'B'], configs: [], aircraft: { A: newAircraft('Morpho A'), B: newAircraft('Morpho B') } }; }
 // Liste des hélicoptères : nombre libre, ordre des onglets conservé dans store.order
+// Configurations communes à tous les hélicoptères : stations repérées par leur NOM,
+// carburant toujours enregistré en kg (converti en L ou kg selon l'hélicoptère au chargement).
+const ckey = n => String(n || '').trim().toLowerCase();
+function migrateConfigs(s, a, label) { // anciennes configurations propres à un hélicoptère → liste commune
+  if (!a || !Array.isArray(a.configs)) { if (a) delete a.configs; return; }
+  const kg = a.fuelUnit === 'kg', d = isNum(a.density) && a.density > 0 ? a.density : null;
+  a.configs.forEach(c => {
+    if (!c || typeof c !== 'object') return;
+    const values = {}, removed = {};
+    (a.stations || []).forEach(t => {
+      if (c.values && t.id in c.values) { let v = c.values[t.id]; if (t.type === 'fuel' && !kg) v = d && isNum(v) ? r1(v * d) : null; if (isNum(v)) values[ckey(t.name)] = v; }
+      if (c.removed && t.id in c.removed) removed[ckey(t.name)] = !!c.removed[t.id];
+    });
+    const name = String(c.name || 'Configuration');
+    if (s.configs.some(x => x.name === name && JSON.stringify(x.values) === JSON.stringify(values) && JSON.stringify(x.removed) === JSON.stringify(removed))) return;
+    s.configs.push({ id: uid(), name: s.configs.some(x => x.name === name) ? name + ' (' + label + ')' : name, values, removed });
+  });
+  delete a.configs;
+}
 function normalizeStore(s) {
+  if (!Array.isArray(s.configs)) s.configs = [];
+  Object.keys(s.aircraft).forEach(k => migrateConfigs(s, s.aircraft[k], s.aircraft[k] && s.aircraft[k].name || k));
   s.order = (Array.isArray(s.order) ? s.order : []).filter(k => s.aircraft[k]);
   Object.keys(s.aircraft).forEach(k => { if (!s.order.includes(k)) s.order.push(k); });
   if (!s.aircraft[s.active]) s.active = s.order[0];
@@ -431,62 +452,81 @@ function renderTabs() {
 
 function unitOf(s, a) { return s.type === 'fuel' && !fuelKg(a || ac()) ? 'L' : 'kg'; }
 
-// ---------------- Configurations (saisies enregistrées par hélicoptère) ----------------
+// ---------------- Configurations (saisies enregistrées, communes à tous les hélicoptères) ----------------
+// Une configuration retient les masses par NOM de station (Pilote, PAX 1, Carburant…) :
+// elle se charge sur n'importe quel hélicoptère qui a des stations de même nom.
 function snapshot(a) {
   const values = {}, removed = {};
   a.stations.forEach(s => {
     if (!s.visible) return;
-    if (s.type === 'var' || s.type === 'fuel') values[s.id] = stationValue(a, s);
-    if (s.type === 'fixed') removed[s.id] = isRemoved(a, s);
+    const k = ckey(s.name);
+    if (s.type === 'var') values[k] = stationValue(a, s);
+    if (s.type === 'fuel') { const v = stationValue(a, s); const kg = fuelKg(a) ? v : (isNum(a.density) && a.density > 0 ? r1(v * a.density) : null); if (isNum(kg)) values[k] = kg; }
+    if (s.type === 'fixed') removed[k] = isRemoved(a, s);
   });
   return { values, removed };
 }
 function cfgMatches(a, c) {
   const cur = snapshot(a);
-  return Object.keys(c.values || {}).every(k => !(k in cur.values) || Math.abs(cur.values[k] - c.values[k]) < 1e-9) &&
+  return Object.keys(c.values || {}).every(k => !(k in cur.values) || Math.abs(cur.values[k] - c.values[k]) < 0.06) &&
     Object.keys(c.removed || {}).every(k => !(k in cur.removed) || cur.removed[k] === c.removed[k]);
 }
-const matchedConfig = a => (a.configs || []).find(c => cfgMatches(a, c));
+const matchedConfig = a => (store.configs || []).find(c => cfgMatches(a, c));
+function applyConfig(a, c) { // renvoie le nombre de stations de la configuration absentes de cet hélicoptère
+  a.values = {}; a.removed = {};
+  const used = new Set();
+  a.stations.forEach(s => {
+    if (!s.visible) return;
+    const k = ckey(s.name);
+    if ((s.type === 'var' || s.type === 'fuel') && k in (c.values || {})) {
+      let v = c.values[k];
+      if (s.type === 'fuel' && !fuelKg(a)) v = isNum(a.density) && a.density > 0 ? r1(v / a.density) : null;
+      if (isNum(v)) { a.values[s.id] = v; used.add(k); }
+    }
+    if (s.type === 'fixed' && k in (c.removed || {})) { a.removed[s.id] = !!c.removed[k]; used.add(k); }
+  });
+  return Object.keys(Object.assign({}, c.values, c.removed)).filter(k => !used.has(k)).length;
+}
 function renderConfigs() {
-  const a = ac(); if (!Array.isArray(a.configs)) a.configs = [];
-  const n = a.configs.length;
+  const list = store.configs = Array.isArray(store.configs) ? store.configs : [];
+  const n = list.length;
   $('cfgCount').textContent = n ? n + ' enregistrée' + (n > 1 ? 's' : '') : 'aucune';
-  $('cfgList').innerHTML = n ? a.configs.map(c => `<div class="row cfg" data-id="${esc(c.id)}">
+  $('cfgList').innerHTML = n ? list.map(c => `<div class="row cfg" data-id="${esc(c.id)}">
       <div class="head"><div class="nm">${esc(c.name)}</div><div class="mo"></div></div>
       <div class="stlinks"><button class="btn primary" data-act="load">Charger</button><button class="btn" data-act="upd">Mettre à jour</button><button class="btn" data-act="ren">Renommer</button><button class="btn danger" data-act="del" style="margin-left:auto">Supprimer</button></div>
-    </div>`).join('') : '<p class="small" style="margin:6px 0 4px">Aucune configuration. Règle les masses, puis enregistre-les pour les retrouver en un geste.</p>';
+    </div>`).join('') : '<p class="small" style="margin:6px 0 4px">Aucune configuration. Règle les masses, puis enregistre-les pour les retrouver en un geste, sur tous les hélicoptères.</p>';
   markConfigs();
 }
 function markConfigs() {
-  const a = ac(); if (!Array.isArray(a.configs)) return;
+  const a = ac();
   $('cfgList').querySelectorAll('.cfg').forEach(row => {
-    const c = a.configs.find(x => x.id === row.dataset.id);
+    const c = store.configs.find(x => x.id === row.dataset.id);
     row.querySelector('.mo').textContent = c && cfgMatches(a, c) ? '✓ chargée' : '';
   });
 }
 $('cfgList').onclick = e => {
   const b = e.target.closest('button[data-act]'); if (!b) return;
-  const a = ac(), c = a.configs.find(x => x.id === b.closest('.cfg').dataset.id); if (!c) return;
+  const a = ac(), c = store.configs.find(x => x.id === b.closest('.cfg').dataset.id); if (!c) return;
   const msg = t => { $('cfgMsg').textContent = t; };
   if (b.dataset.act === 'load') {
-    a.values = Object.assign({}, c.values); a.removed = Object.assign({}, c.removed);
-    save(); renderAll(); msg('Configuration « ' + c.name + ' » chargée.');
+    const miss = applyConfig(a, c);
+    save(); renderAll(); msg('Configuration « ' + c.name + ' » chargée sur ' + a.name + (miss ? ' (' + miss + ' station' + (miss > 1 ? 's' : '') + " de la configuration absente" + (miss > 1 ? 's' : '') + ' de cet hélicoptère, ignorée' + (miss > 1 ? 's' : '') + ').' : '.'));
   } else if (b.dataset.act === 'upd') {
-    ask('Remplacer la configuration « ' + c.name + ' » par la saisie actuelle ?', 'Mettre à jour', () => {
+    ask('Remplacer la configuration « ' + c.name + ' » par la saisie actuelle de ' + a.name + ' ?\nElle change pour tous les hélicoptères.', 'Mettre à jour', () => {
       const s = snapshot(a); c.values = s.values; c.removed = s.removed; save(); markConfigs(); msg('Configuration « ' + c.name + ' » mise à jour.');
     });
   } else if (b.dataset.act === 'ren') {
     ask('Nouveau nom de la configuration :', 'Renommer', v => { c.name = v; save(); renderConfigs(); msg('Configuration renommée.'); }, { input: c.name });
   } else if (b.dataset.act === 'del') {
-    ask('Supprimer la configuration « ' + c.name + ' » ?', 'Supprimer', () => { a.configs.splice(a.configs.indexOf(c), 1); save(); renderConfigs(); msg('Configuration supprimée.'); });
+    ask('Supprimer la configuration « ' + c.name + ' » ?\nElle disparaît pour tous les hélicoptères.', 'Supprimer', () => { store.configs.splice(store.configs.indexOf(c), 1); save(); renderConfigs(); msg('Configuration supprimée.'); });
   }
 };
 $('btnCfgSave').onclick = () => {
-  const a = ac(); if (!Array.isArray(a.configs)) a.configs = [];
+  const a = ac(); if (!Array.isArray(store.configs)) store.configs = [];
   ask('Nom de la configuration :', 'Enregistrer', name => {
-    const s = snapshot(a); a.configs.push({ id: uid(), name, values: s.values, removed: s.removed });
-    save(); renderConfigs(); $('cfgMsg').textContent = 'Configuration « ' + name + ' » enregistrée.';
-  }, { input: 'Configuration ' + (a.configs.length + 1) });
+    const s = snapshot(a); store.configs.push({ id: uid(), name, values: s.values, removed: s.removed });
+    save(); renderConfigs(); $('cfgMsg').textContent = 'Configuration « ' + name + ' » enregistrée pour tous les hélicoptères.';
+  }, { input: 'Configuration ' + (store.configs.length + 1) });
 };
 
 function renderRows() {
@@ -900,14 +940,14 @@ function convertFuel(a, to) {
     if (/^Saisi en (litres|kg)$/.test(s.desc || '')) s.desc = 'Saisi en ' + (to === 'kg' ? 'kg' : 'litres');
   });
   const conv = o => { if (o) ids.forEach(id => { if (id in o) o[id] = cv(o[id]); }); };
-  conv(a.values); (a.configs || []).forEach(c => conv(c.values));
+  conv(a.values); // les configurations sont en kg : elles ne changent pas
   a.fuelUnit = to;
 }
 $('setFuelUnit').onchange = () => {
   const a = ac(), to = $('setFuelUnit').value, from = fuelKg(a) ? 'kg' : 'L';
   if (to === from) return;
   if (!isNum(a.density) || a.density <= 0) { toast("Renseigne d'abord la densité du carburant."); renderSettings(); return; }
-  ask('Passer le carburant en ' + (to === 'kg' ? 'kilogrammes' : 'litres') + ' ?\nLa capacité, les valeurs par défaut, les saisies et les configurations sont converties avec la densité ' + a.density + ' kg/L.', 'Convertir',
+  ask('Passer le carburant en ' + (to === 'kg' ? 'kilogrammes' : 'litres') + ' ?\nLa capacité, les valeurs par défaut, et les saisies sont converties avec la densité ' + a.density + ' kg/L.', 'Convertir',
     () => { convertFuel(a, to); save(); renderSettings(); renderAll(); }, { onNo: () => renderSettings() });
 };
 
@@ -1051,7 +1091,7 @@ $('btnImport').onclick = () => {
 // ---------------- Copie des réglages d'un seul hélicoptère ----------------
 // Le texte d'un hélicoptère ne contient que ses réglages (pas les saisies du vol).
 // L'import ne modifie que l'hélicoptère sélectionné et lui garde son nom.
-const one = a => { const c = JSON.parse(JSON.stringify(a)); delete c.values; delete c.removed; delete c.catOpen; delete c.setOpen; delete c.doc; return c; };
+const one = a => { const c = JSON.parse(JSON.stringify(a)); delete c.values; delete c.removed; delete c.catOpen; delete c.setOpen; delete c.doc; delete c.configs; return c; };
 // le document de pesée reste sur l'appareil : il n'entre pas dans les textes de sauvegarde
 const noDoc = (k, v) => k === 'doc' ? undefined : v;
 const validAircraft = c => !!c && Array.isArray(c.stations) && Array.isArray(c.envelope) &&
@@ -1060,6 +1100,7 @@ const validAircraft = c => !!c && Array.isArray(c.stations) && Array.isArray(c.e
 function applyOne(src, label) {
   const keep = ac().name;
   ask("Remplacer les réglages de " + keep + " par " + label + " ?\nLes autres hélicoptères ne seront pas modifiés.", 'Remplacer', () => {
+    if (Array.isArray(src.configs)) migrateConfigs(store, JSON.parse(JSON.stringify(src)), src.name || 'importée'); // anciennes configurations du texte → liste commune
     const c = one(src);
     c.name = keep; c.values = {}; c.removed = {}; c.catOpen = {}; c.setOpen = {};
     if (ac().doc) c.doc = ac().doc;
